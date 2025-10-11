@@ -64,3 +64,10 @@ export async function deleteDesk(id: number): Promise<void> {
     throw new NotFoundError(`Desk with ID ${id} not found`);
   }
 }
+
+/** Call the next ticket for a desk
+ * Returns the ticket details or null if no ticket is waiting
+ */
+export async function callNext(deskId: number) {
+  return null; // TODO
+}
