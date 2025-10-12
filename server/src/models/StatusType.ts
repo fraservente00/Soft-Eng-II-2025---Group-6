@@ -4,8 +4,8 @@
  * @export
  */
 export const StatusType = {
-    Open: 'open',
-    Closed: 'closed'
+    open: 'open',
+    closed: 'closed'
 } as const;
 export type StatusType = typeof StatusType[keyof typeof StatusType];
 
