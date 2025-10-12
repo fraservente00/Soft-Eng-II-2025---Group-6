@@ -1,20 +1,29 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToMany, OneToMany } from "typeorm";
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToMany,
+  OneToMany,
+} from "typeorm";
 import { DeskDAO } from "./DeskDAO";
-import { TicketDAO   } from "./TicketDAO";
+import { TicketDAO } from "./TicketDAO";
 
-@Entity()
+@Entity({ name: "services" })
 export class ServiceDAO {
   @PrimaryGeneratedColumn()
-  id!: number;
+  id!: number; // set by TypeORM at runtime (definite assignment)
 
-  @Column()
-  estimatedTime!: number; // in minutes, for example
+  @Column({ type: "text", unique: true })
+  name!: string; // e.g., "ID Card", "Registry Certificate"
 
-  // 🔁 Relation with Desk (many-to-many)
+  @Column({ type: "integer" })
+  estimatedTime!: number; // in minutes
+
+  // Service ↔ Desk (M:N)
   @ManyToMany(() => DeskDAO, (desk) => desk.services)
   desks!: DeskDAO[];
 
-  // 🔁 Relation with Ticket (one-to-many)
+  // Service ↔ Ticket (1:N)
   @OneToMany(() => TicketDAO, (ticket) => ticket.service)
   tickets!: TicketDAO[];
 }
