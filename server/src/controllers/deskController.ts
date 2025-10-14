@@ -64,3 +64,37 @@ export async function deleteDesk(id: number): Promise<void> {
     throw new NotFoundError(`Desk with ID ${id} not found`);
   }
 }
+
+/** Call the next ticket for a desk
+ * Returns the ticket details or null if no ticket is waiting
+ */
+export async function callNext(deskId: number) {
+  // assicurati che le queue siano inizializzate (ricostruite dal DB)
+  await queueService.init();
+
+  const deskRepo = new DeskRepository();
+  const deskDAO = await deskRepo.findWithServicesById(deskId);
+  if (!deskDAO) throw new NotFoundError(`Desk with ID ${deskId} not found`);
+
+  const ticketRepo = new TicketRepository();
+
+  // scorri i servizi gestiti dal desk e prova a prelevare il primo ticket
+  for (const svc of deskDAO.services || []) {
+    const svcId = (svc as any).id;
+    const ticketDAO = await queueService.dequeue(svcId);
+    if (!ticketDAO) continue;
+
+    // assegna il ticket al desk e setta TimeStarted / status
+    ticketDAO.managedBy = deskDAO;
+    ticketDAO.status = StatusType.Open as any;
+    ticketDAO.TimeStarted = new Date();
+
+    const updated = await ticketRepo.update(ticketDAO.id, ticketDAO);
+    if (!updated) continue;
+
+    // ritorna DTO
+    return mapTicketDAOToDTO(updated);
+  }
+
+  return null;
+}

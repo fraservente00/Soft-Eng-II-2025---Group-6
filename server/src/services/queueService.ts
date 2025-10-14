@@ -1,0 +1,69 @@
+import { ServiceRepository } from "../repositories/ServiceRepository";
+import { TicketRepository } from "../repositories/TicketRepository";
+import { StatusType } from "../models/StatusType";
+import { mapTicketDAOToDTO } from "./mapperService";
+
+/**
+ * QueueService
+ * - mantiene Map<serviceId, ticketId[]>
+ * - init() ricostruisce le code dal DB (ticket aperti)
+ * - enqueueAfterCreate(): aggiunge al fondo della coda
+ * - dequeueFromService(): rimuove e ritorna il ticket DAO (o null)
+ */
+class QueueService {
+  private queues: Map<number, number[]> = new Map();
+  private initialized = false;
+
+  async init() {
+    if (this.initialized) return;
+    const serviceRepo = new ServiceRepository();
+    const ticketRepo = new TicketRepository();
+
+    const services = await serviceRepo.findAll();
+    for (const s of services) {
+      const serviceId = (s as any).id;
+      // leggi ticket aperti dal DB come fallback (ordine by id asc)
+      const tickets = await ticketRepo.findByServiceIdStatus(serviceId, StatusType.Open as any).catch(() => []);
+      const sortedIds = (tickets || []).map((t: any) => t.id).sort((a: number, b: number) => a - b);
+      this.queues.set(serviceId, sortedIds);
+    }
+    this.initialized = true;
+  }
+
+  ensureQueue(serviceId: number) {
+    if (!this.queues.has(serviceId)) this.queues.set(serviceId, []);
+  }
+
+  enqueue(ticketDAO: any) {
+    const serviceId = ticketDAO?.service?.id;
+    if (!serviceId) return;
+    this.ensureQueue(serviceId);
+    this.queues.get(serviceId)!.push(ticketDAO.id);
+  }
+
+  // rimuove il primo ticket disponibile per il serviceId
+  async dequeue(serviceId: number): Promise<any | null> {
+    this.ensureQueue(serviceId);
+    const arr = this.queues.get(serviceId)!;
+    if (arr.length === 0) return null;
+    const ticketId = arr.shift()!;
+    const ticketRepo = new TicketRepository();
+    const ticket = await ticketRepo.findById(ticketId);
+    return ticket || null;
+  }
+
+  // helper: ritorna array di serviceId per un desk (non modifica DB)
+  getQueueLength(serviceId: number) {
+    this.ensureQueue(serviceId);
+    return this.queues.get(serviceId)!.length;
+  }
+
+  // per debug/inspection
+  dump() {
+    const obj: Record<string, number[]> = {};
+    for (const [k, v] of this.queues.entries()) obj[String(k)] = [...v];
+    return obj;
+  }
+}
+
+export default new QueueService();
