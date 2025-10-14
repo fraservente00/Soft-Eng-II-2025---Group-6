@@ -105,3 +105,16 @@ export async function deleteTicket(id: number): Promise<void> {
   const deleted = await ticketRepo.delete(id);
   if (!deleted) throw new NotFoundError(`Ticket with ID ${id} not found`);
 }
+
+
+/** Subscribe to ticket events (SSE) */
+
+export function subscribeToTickets(req: Request, res: Response) {
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders();
+
+  addClient(req, res);
+}
+

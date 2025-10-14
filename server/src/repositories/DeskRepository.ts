@@ -40,4 +40,8 @@ export class DeskRepository {
     const result = await this.repository.delete(id);
     return result.affected !== 0;
   }
+
+  async findWithServicesById(id: number): Promise<DeskDAO | null> {
+    return this.repository.findOne({ where: { id } as any, relations: ["services"] });
+  }
 }

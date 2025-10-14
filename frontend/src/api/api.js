@@ -100,6 +100,30 @@ export async function updateTicketStatus(id, status) {
   }
 }
 
+
+//here you pass the callback function that will handle incoming messages
+export function subscribeToTickets(onMessage) {
+  const eventSource = new EventSource(`${API_BASE}/subscribe`);
+
+ // When the server sends a "ticketCalled" event
+  eventSource.addEventListener("ticketCalled", (event) => {
+    const data = JSON.parse(event.data);
+    onMessage(data); // Call the provided callback with the data
+  });
+
+  eventSource.onerror = (err) => {
+    console.error("SSE error:", err);
+    eventSource.close();
+  };
+
+  // Return a cleanup function to stop listening
+  return () => {
+    eventSource.close();
+    console.log("SSE connection closed");
+  };
+}
+
+
 /* ------------------ QUEUES ------------------ */
 export async function getQueues() {
   try {
