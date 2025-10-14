@@ -1,6 +1,6 @@
 import { Desk } from "../models/DTO/Desk";
 import { DeskRepository } from "../repositories/DeskRepository";
-import { mapDeskDAOToDTO } from "../services/mapperService";
+import { mapDeskDAOToDTO, mapDeskDTOToDAO } from "../services/mapperService";
 import { NotFoundError } from "../models/errors/NotFoundError";
 
 /**
@@ -38,16 +38,18 @@ export async function getDesksByServiceId(serviceId: number): Promise<Desk[]> {
  */
 export async function createDesk(deskDto: Desk): Promise<Desk> {
   const deskRepo = new DeskRepository();
-  const createdDesk = await deskRepo.create(deskDto);
+  const deskDao = mapDeskDTOToDAO(deskDto);
+  const createdDesk = await deskRepo.create(deskDao);
   return mapDeskDAOToDTO(createdDesk);
 }
 
 /**
  * Update an existing desk
  */
-export async function updateDesk(id: number, deskDto: Partial<Desk>): Promise<Desk> {
+export async function updateDesk(id: number, deskDto: Desk): Promise<Desk> {
   const deskRepo = new DeskRepository();
-  const updatedDesk = await deskRepo.update(id, deskDto);
+  const deskDaoPartial = mapDeskDTOToDAO(deskDto);
+  const updatedDesk = await deskRepo.update(id, deskDaoPartial);
   if (!updatedDesk) {
     throw new NotFoundError(`Desk with ID ${id} not found`);
   }

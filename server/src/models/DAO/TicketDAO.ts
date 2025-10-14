@@ -1,27 +1,33 @@
-import { Entity, PrimaryGeneratedColumn, Column, OneToOne, ManyToOne } from "typeorm";
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne } from "typeorm";
 import { StatusType } from "../StatusType";
 import { DeskDAO } from "./DeskDAO";
 import { ServiceDAO } from "./ServiceDAO";
 
-@Entity()
+@Entity({ name: "tickets" })
 export class TicketDAO {
   @PrimaryGeneratedColumn()
-  id!: number;
+  id!: number; // set by TypeORM at runtime (definite assignment)
 
-  @Column()
-  status!: StatusType;
+  @Column({ type: "text" })
+  status!: StatusType; // e.g., "open" | "closed" (from StatusType)
 
-  @Column()
-  TimeStarted!: Date;
+  @Column({ type: "datetime", default: () => "CURRENT_TIMESTAMP" })
+  createdAt!: Date; // was TimeStarted
 
-  @Column()
-  TimeEnded: Date | undefined;
+  @Column({ type: "datetime", nullable: true })
+  endedAt?: Date | null; // was TimeEnded
 
-  // 🔁 Many tickets per one service
-  @ManyToOne(() => ServiceDAO, (service) => service.tickets)
+  // Ticket ↔ Service (N:1): a ticket belongs to one service
+  @ManyToOne(() => ServiceDAO, (service) => service.tickets, {
+    nullable: false,
+    onDelete: "RESTRICT",
+  })
   service!: ServiceDAO;
 
-  // 🔁 Many tickets per one desk
-  @ManyToOne(() => DeskDAO, (desk) => desk.tickets)
-  managedBy!: DeskDAO;
+  // Ticket ↔ Desk (N:1): the desk that handled the ticket (may be null before assignment)
+  @ManyToOne(() => DeskDAO, (desk) => desk.tickets, {
+    nullable: true,
+    onDelete: "SET NULL",
+  })
+  managedBy!: DeskDAO | null;
 }

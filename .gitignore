@@ -1,11 +1,17 @@
-# Node dependencies
+# Node
 server/node_modules/
 
 # Build output
 server/dist/
 server/build/
 
-# Environment variables
+# SQLite database files
+server/database.sqlite
+server/database.sqlite-journal
+server/database.sqlite-wal
+server/database.sqlite-shm
+
+# Env
 server/.env
 server/.env.local
 server/.env.*.local
@@ -14,14 +20,20 @@ server/.env.*.local
 server/npm-debug.log*
 server/yarn-debug.log*
 server/yarn-error.log*
+server/pnpm-debug.log*
 
 # TypeScript
 server/*.tsbuildinfo
 
-# OS files
+# Coverage / tooling
+server/coverage/
+server/.nyc_output/
+server/.eslintcache
+
+# OS
 .DS_Store
 Thumbs.db
 
-# IDE files
+# IDE
 .vscode/
 .idea/

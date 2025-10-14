@@ -8,6 +8,6 @@ export const AppDataSource = new DataSource({
   type: "sqlite",
   database: "database.sqlite",
   synchronize: true, // auto-create tables (disable in production)
-  logging: false,
+  logging: true,
   entities: [DeskDAO, ServiceDAO, TicketDAO],
 });
