@@ -3,7 +3,7 @@ import { TicketRepository } from "../repositories/TicketRepository";
 import { mapTicketDAOToDTO, mapTicketDTOToDAO } from "../services/mapperService";
 import { NotFoundError } from "../models/errors/NotFoundError";
 import { StatusType } from "../models/StatusType";
-import { QueueService } from "../services/queueService"
+import queueService  from "../services/queueService"
 
 /**
  * Get all tickets
@@ -67,7 +67,7 @@ export async function createTicket(ticketDto: Ticket): Promise<Ticket> {
   const createdTicket = await ticketRepo.create(ticketDAO);
 
   //Add the new ticket to its queue
-  QueueService.enqueue(createdTicket);
+  queueService.enqueue(createdTicket);
 
   // Map DAO → DTO
   return mapTicketDAOToDTO(createdTicket);

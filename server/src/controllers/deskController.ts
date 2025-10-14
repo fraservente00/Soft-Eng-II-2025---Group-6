@@ -2,6 +2,10 @@ import { Desk } from "../models/DTO/Desk";
 import { DeskRepository } from "../repositories/DeskRepository";
 import { mapDeskDAOToDTO } from "../services/mapperService";
 import { NotFoundError } from "../models/errors/NotFoundError";
+import queueService  from "../services/queueService";
+import { StatusType } from "../models/StatusType";
+import { TicketRepository } from "../repositories/TicketRepository";
+import { mapTicketDAOToDTO } from "../services/mapperService";
 
 /**
  * Get all desks
