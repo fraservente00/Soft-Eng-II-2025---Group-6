@@ -29,12 +29,12 @@ router.delete("/:id", async (req, res, next) => {
 });
 
 // POST /api/desks/:id/next  <-- core operation
-router.post("/:id/next", async (req, res, next) => {
+/*router.post("/:id/next", async (req, res, next) => {
   try {
     const result = await deskController.callNext(Number(req.params.id));
     if (!result) return res.status(204).send();
     return res.json(result);
   } catch (e) { next(e); }
-});
+});*/
 
 export default router;
