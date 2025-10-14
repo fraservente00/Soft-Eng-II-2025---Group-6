@@ -24,12 +24,12 @@ export class DeskRepository {
       .getMany();
   }
 
-  async create(data: Partial<DeskDAO>): Promise<DeskDAO> {
+  async create(data: DeskDAO): Promise<DeskDAO> {
     const entity = this.repository.create(data);
     return this.repository.save(entity);
   }
 
-  async update(id: number, data: Partial<DeskDAO>): Promise<DeskDAO | null> {
+  async update(id: number, data: DeskDAO): Promise<DeskDAO | null> {
     const entity = await this.repository.findOneBy({ id } as any);
     if (!entity) return null;
     Object.assign(entity, data);
@@ -39,5 +39,9 @@ export class DeskRepository {
   async delete(id: number): Promise<boolean> {
     const result = await this.repository.delete(id);
     return result.affected !== 0;
+  }
+
+  async findWithServicesById(id: number): Promise<DeskDAO | null> {
+    return this.repository.findOne({ where: { id } as any, relations: ["services"] });
   }
 }

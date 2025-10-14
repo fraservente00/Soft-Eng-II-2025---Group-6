@@ -24,12 +24,12 @@ export class ServiceRepository {
       .getMany();
   }
 
-  async create(data: Partial<ServiceDAO>): Promise<ServiceDAO> {
+  async create(data: ServiceDAO): Promise<ServiceDAO> {
     const entity = this.repository.create(data);
     return this.repository.save(entity);
   }
 
-  async update(id: number, data: Partial<ServiceDAO>): Promise<ServiceDAO | null> {
+  async update(id: number, data: ServiceDAO): Promise<ServiceDAO | null> {
     const entity = await this.repository.findOneBy({ id } as any);
     if (!entity) return null;
     Object.assign(entity, data);

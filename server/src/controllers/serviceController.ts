@@ -1,6 +1,7 @@
 import { Service } from "../models/DTO/Service";
 import { ServiceRepository } from "../repositories/ServiceRepository";
 import { mapServiceDAOToDTO } from "../services/mapperService";
+import { mapServiceDTOToDAO } from "../services/mapperService";
 import { NotFoundError } from "../models/errors/NotFoundError";
 
 /**
@@ -38,16 +39,18 @@ export async function getServicesByDeskId(deskId: number): Promise<Service[]> {
  */
 export async function createService(serviceDto: Service): Promise<Service> {
   const serviceRepo = new ServiceRepository();
-  const createdService = await serviceRepo.create(serviceDto);
+  const serviceDao = mapServiceDTOToDAO(serviceDto);
+  const createdService = await serviceRepo.create(serviceDao);
   return mapServiceDAOToDTO(createdService);
 }
 
 /**
  * Update an existing service
  */
-export async function updateService(id: number, serviceDto: Partial<Service>): Promise<Service> {
+export async function updateService(id: number, serviceDto: Service): Promise<Service> {
   const serviceRepo = new ServiceRepository();
-  const updatedService = await serviceRepo.update(id, serviceDto);
+  const serviceDaoPartial = mapServiceDTOToDAO(serviceDto);
+  const updatedService = await serviceRepo.update(id, serviceDaoPartial);
   if (!updatedService) {
     throw new NotFoundError(`Service with ID ${id} not found`);
   }
