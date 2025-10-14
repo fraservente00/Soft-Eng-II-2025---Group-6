@@ -3,6 +3,8 @@ import { TicketRepository } from "../repositories/TicketRepository";
 import { mapTicketDAOToDTO, mapTicketDTOToDAO } from "../services/mapperService";
 import { NotFoundError } from "../models/errors/NotFoundError";
 import { StatusType } from "../models/StatusType";
+import { Request, Response } from "express";
+import { addClient } from "../services/callService";
 
 /**
  * Get all tickets
@@ -105,7 +107,6 @@ export async function deleteTicket(id: number): Promise<void> {
   const deleted = await ticketRepo.delete(id);
   if (!deleted) throw new NotFoundError(`Ticket with ID ${id} not found`);
 }
-
 
 /** Subscribe to ticket events (SSE) */
 
