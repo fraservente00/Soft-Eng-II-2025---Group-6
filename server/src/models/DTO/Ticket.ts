@@ -1,17 +1,28 @@
-import { StatusType } from "../StatusType";
-import { Desk } from "./Desk";
-import { Service } from "./Service";
+// DTO/Ticket.ts
+import type { StatusType } from "../StatusType";
+import type { Desk } from "./Desk";
+import type { Service } from "./Service";
 
 /**
- * 
- * @export
- * @interface Ticket
+ * Ticket DTO used for API I/O and view models.
+ * Mirrors TicketDAO while keeping relations optional.
  */
 export interface Ticket {
+    /** Database identifier (auto-generated) */
     id?: number;
-    Status?: StatusType;
-    TimeStarted?: Date;
-    TimeEnded?: Date;
+
+    /** Ticket status (e.g., "open" | "closed") */
+    status?: StatusType;
+
+    /** Creation timestamp */
+    createdAt?: Date;
+
+    /** When the ticket was completed/closed (nullable) */
+    endedAt?: Date | null;
+
+    /** Related service (required in DB, optional in DTO payloads) */
     service?: Service;
-    managedBy?: Desk;
+
+    /** Desk that handled the ticket (nullable until assigned) */
+    managedBy?: Desk | null;
 }
