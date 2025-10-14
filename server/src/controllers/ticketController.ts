@@ -3,6 +3,8 @@ import { TicketRepository } from "../repositories/TicketRepository";
 import { mapTicketDAOToDTO, mapTicketDTOToDAO } from "../services/mapperService";
 import { NotFoundError } from "../models/errors/NotFoundError";
 import { StatusType } from "../models/StatusType";
+import { Request, Response} from "express";
+import { addClient } from "../services/callService";
 
 /**
  * Get all tickets

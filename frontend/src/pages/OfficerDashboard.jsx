@@ -16,7 +16,7 @@ import CloseIcon from "@mui/icons-material/Close";
 //import { useState } from "react";
 
 // TODO: add id to props
-export default function OfficerDashboard({ idDesk }) {
+export default function OfficerDashboard() {
   // TODO: fetch queues from API based on idDesk
   // const [queues, setQueues] = useState([]);
   // useEffect(() => {
@@ -148,7 +148,7 @@ export default function OfficerDashboard({ idDesk }) {
                 </Typography>
 
                 <List>
-                  {queue.tickets.map((ticket, index) => (
+                  {queue.tickets.map((ticket) => (
                     <ListItem
                       key={ticket.id}
                       sx={{

@@ -1,4 +1,5 @@
-const API_BASE = "http://localhost:3000/api";
+export const API_BASE =
+    import.meta.env.VITE_API_BASE?.replace(/\/+$/, '') || '/api';
 
 /* ------------------ DESKS ------------------ */
 export async function getDesks() {
