@@ -71,7 +71,7 @@ function App() {
 
                     {/* 3) Dashboard (Flavia) — requires officier + selected desk */}
                     <Route
-                        path="/dashboard"
+                        path="/desk/:deskId"
                         element={
                             <OfficierDeskGuard>
                                 {/*<OfficierDashboardPlaceholder />*/}

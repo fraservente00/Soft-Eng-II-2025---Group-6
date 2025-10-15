@@ -50,6 +50,7 @@ router.get("/desk/:deskId", async (req, res, next) => {
   try { res.json(await ticketController.getTicketETA(req.params.code)); } catch (e) { next(e); }
 });*/
 
+/*
 const app = express();
 app.use(cors());
 
@@ -71,4 +72,6 @@ app.get("/subscribe", (req, res) => {
 });
 
 app.listen(3000, () => console.log("SSE server running on port 3000"));
+
+ */
 export default router;

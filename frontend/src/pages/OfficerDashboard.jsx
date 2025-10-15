@@ -1,4 +1,4 @@
-import { useState } from "react";
+import {useEffect, useState} from "react";
 import {
   Box,
   Button,
@@ -10,12 +10,14 @@ import {
   Chip,
   Tooltip,
 } from "@mui/material";
-import { TicketDto } from "../DTOs/ticketDto";
+import {TicketDto} from "../DTOs/ticketDto";
 import CloseIcon from "@mui/icons-material/Close";
+import {useParams} from "react-router-dom";
+import {callNext, getDesk, updateTicketStatus} from "../api/api.js";
 
 //import { useState } from "react";
 
-// TODO: add id to props
+
 export default function OfficerDashboard() {
   // TODO: fetch queues from API based on idDesk
   // const [queues, setQueues] = useState([]);
@@ -29,9 +31,9 @@ export default function OfficerDashboard() {
       id: 1,
       name: "Service 1",
       tickets: [
-        new TicketDto({ id: 105, Status: "open" }),
-        new TicketDto({ id: 103, Status: "open" }),
-        new TicketDto({ id: 102, Status: "open" }),
+        new TicketDto({id: 1, Status: "open"}),
+        new TicketDto({id: 2, Status: "open"}),
+        new TicketDto({id: 3, Status: "open"}),
       ],
       currentIndex: 0,
       lastServed: null,
@@ -40,29 +42,54 @@ export default function OfficerDashboard() {
       id: 2,
       name: "Service 2",
       tickets: [
-        new TicketDto({ id: 104, Status: "open" }),
-        new TicketDto({ id: 101, Status: "open" }),
-        new TicketDto({ id: 100, Status: "open" }),
+        new TicketDto({id: 4, Status: "open"}),
+        new TicketDto({id: 5, Status: "open"}),
+        new TicketDto({id: 6, Status: "open"}),
       ],
       currentIndex: 1,
       lastServed: null,
     },
   ]);
 
-  const [currentTicketId, setCurrentTicketId] = useState(100); // TODO: get from state (ticket id)
+  const [currentTicketId, setCurrentTicketId] = useState(1); // TODO: get from state (ticket id)
+
+  const {deskId} = useParams();
+
+  const [currentDesk, setCurrenDesk] = useState(null);
+
+  useEffect(() => {
+    (async () => {
+
+      setCurrenDesk(await getDesk(deskId))
+    })()
+  }, []);
+
 
   // Function to close a ticket by its ID
-  const closeTicket = (ticketId) => {
-    //TODO: call API to close the ticket
-    //TODO: update timeEnded of the ticket in the backend
-    setQueues((prevQueues) =>
-      prevQueues.map((queue) => ({
-        ...queue,
-        tickets: queue.tickets.map((ticket) =>
-          ticket.id === ticketId ? { ...ticket, Status: "closed" } : ticket
-        ),
-      }))
-    );
+  const closeTicket = async (ticketId) => {
+    try {
+      // call API to close the ticket
+      console.log(ticketId)
+      const closed = await updateTicketStatus(ticketId, "closed");
+      //console.log("closed obj")
+      //console.log(closed)
+      //if (closed.success) {
+        console.log("update queus...")
+        //TODO: update timeEnded of the ticket in the backend
+        setQueues((prevQueues) =>
+          prevQueues.map((queue) => ({
+            ...queue,
+            tickets: queue.tickets.map((ticket) =>
+              ticket.id === ticketId ? {...ticket, Status: "closed"} : ticket
+            ),
+          }))
+        );
+      //}
+    } catch (e) {
+      console.error("Error closing the ticket:", e);
+    }
+
+
   };
 
   const getStatusTicket = (ticketId) => {
@@ -72,28 +99,46 @@ export default function OfficerDashboard() {
     return ticket ? ticket.Status : null;
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     // TODO: update timeStrted of the current ticket in the backend
-    // Update queues removing the current ticket from its queue
-    setQueues((prevQueues) =>
-      prevQueues.map((queue) => {
-        // If the queue contains the current ticket
-        if (queue.tickets.some((t) => t.id === currentTicketId)) {
-          return {
-            ...queue,
-            // Remove the current ticket from tickets
-            tickets: queue.tickets.filter((t) => t.id !== currentTicketId),
-            // Update lastServed
-            lastServed: queue.tickets.find((t) => t.id === currentTicketId),
-          };
-        }
-        // Otherwise return the queue unchanged
-        return queue;
-      })
-    );
+
 
     // Increment current ticket (for demo purposes)
-    setCurrentTicketId((prev) => prev + 1);
+    try {
+      const currentTicket = await callNext(deskId);
+      console.log("response of callNext fun")
+      console.log(currentTicket)
+
+      //if (currentTicket.success){
+
+        // Update the currentTicketId state
+        setCurrentTicketId(currentTicket.id)
+
+        // Update queues removing the current ticket from its queue
+        setQueues((prevQueues) =>
+          prevQueues.map((queue) => {
+            // If the queue contains the current ticket
+            if (queue.tickets.some((t) => t.id === currentTicketId)) {
+              return {
+                ...queue,
+                // Remove the current ticket from tickets
+                tickets: queue.tickets.filter((t) => t.id !== currentTicketId),
+                // Update lastServed
+                lastServed: queue.tickets.find((t) => t.id === currentTicketId),
+              };
+            }
+            // Otherwise return the queue unchanged
+            return queue;
+          })
+        );
+      //}
+
+
+    } catch (e) {
+      console.error("Error reaching next ticket:", e);
+    }
+
+    //setCurrentTicketId((prev) => prev + 1);
   };
 
   /**
@@ -101,6 +146,7 @@ export default function OfficerDashboard() {
    */
 
   return (
+
     <Box
       sx={{
         p: 4,
@@ -112,6 +158,9 @@ export default function OfficerDashboard() {
       }}
     >
       <Typography variant="h4" textAlign="center" gutterBottom>
+        {currentDesk?.name}
+      </Typography>
+      <Typography variant="h4" textAlign="center" gutterBottom>
         🎟 Manage Ticket Queues
       </Typography>
 
@@ -119,7 +168,7 @@ export default function OfficerDashboard() {
         container
         spacing={4}
         justifyContent="center"
-        sx={{ maxWidth: 1200 }}
+        sx={{maxWidth: 1200}}
       >
         {queues.map((queue) => {
           return (
@@ -142,7 +191,7 @@ export default function OfficerDashboard() {
                 <Typography
                   variant="h6"
                   gutterBottom
-                  sx={{ textTransform: "uppercase" }}
+                  sx={{textTransform: "uppercase"}}
                 >
                   #{queue.name}
                 </Typography>
@@ -171,7 +220,7 @@ export default function OfficerDashboard() {
                           {getStatusTicket(ticket.id) === "open" ? (
                             <Tooltip title="Click to close this ticket">
                               <Chip
-                                icon={<CloseIcon />}
+                                icon={<CloseIcon/>}
                                 label="Close"
                                 color="error"
                                 size="small"
@@ -208,7 +257,7 @@ export default function OfficerDashboard() {
                             label="Current"
                             color="primary"
                             size="small"
-                            sx={{ ml: 1 }}
+                            sx={{ml: 1}}
                           />
                         </Box>
                       )}
@@ -220,7 +269,7 @@ export default function OfficerDashboard() {
                   <Typography
                     variant="body2"
                     color="text.secondary"
-                    sx={{ mt: 1 }}
+                    sx={{mt: 1}}
                   >
                     Last served: #{queue.lastServed.id}
                   </Typography>
@@ -270,7 +319,7 @@ export default function OfficerDashboard() {
               {getStatusTicket(currentTicketId) === "open" ? (
                 <Tooltip title="Click to close this ticket">
                   <Chip
-                    icon={<CloseIcon />}
+                    icon={<CloseIcon/>}
                     label="Close"
                     color="error"
                     size="small"
@@ -291,7 +340,7 @@ export default function OfficerDashboard() {
                   color="secondary"
                   size="small"
                   variant="filled"
-                  sx={{ cursor: "pointer" }}
+                  sx={{cursor: "pointer"}}
                 />
               )}
             </Box>

@@ -28,13 +28,13 @@ router.delete("/:id", async (req, res, next) => {
   try { await deskController.deleteDesk(Number(req.params.id)); res.status(204).send(); } catch (e) { next(e); }
 });
 
-// POST /api/desks/:id/next  <-- core operation
-/*router.post("/:id/next", async (req, res, next) => {
+// GET /api/desks/:id/next  <-- core operation
+router.get("/:id/next", async (req, res, next) => {
   try {
     const result = await deskController.callNext(Number(req.params.id));
     if (!result) return res.status(204).send();
     return res.json(result);
   } catch (e) { next(e); }
-});*/
+});
 
 export default router;
