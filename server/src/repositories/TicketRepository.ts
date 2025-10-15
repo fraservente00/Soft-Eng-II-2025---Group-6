@@ -21,10 +21,12 @@ export class TicketRepository {
   // this is for managing queues when there is a crash
   async findByServiceIdStatus(serviceId: number, status: StatusType): Promise<TicketDAO[]> {
     return this.repository
-      .createQueryBuilder("ticket")
-      .innerJoin("ticket.services", "service", "service.id = :serviceId", { serviceId })
-      .where("ticket.status = :status", { status })
-      .getMany();
+        .createQueryBuilder("ticket")
+        .innerJoin("ticket.service", "service")
+        .where("service.id = :serviceId", { serviceId })
+        .andWhere("ticket.status = :status", { status })
+        .orderBy("ticket.id", "ASC")
+        .getMany();
   }
 
   async findByServiceId(serviceId: number): Promise<TicketDAO[]> {

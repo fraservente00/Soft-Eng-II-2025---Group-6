@@ -101,6 +101,9 @@ export async function updateTicketStatus(id: number, status: StatusType): Promis
   const ticketRepo = new TicketRepository();
   const updatedTicket = await ticketRepo.updateStatus(id, status);
   if (!updatedTicket) throw new NotFoundError(`Ticket with ID ${id} not found`);
+  if (status === "closed") {
+    queueService.remove(id)
+  }
   return mapTicketDAOToDTO(updatedTicket);
 }
 
@@ -112,6 +115,7 @@ export async function deleteTicket(id: number): Promise<void> {
   const deleted = await ticketRepo.delete(id);
   if (!deleted) throw new NotFoundError(`Ticket with ID ${id} not found`);
 }
+
 
 /** Subscribe to ticket events (SSE) */
 

@@ -2,6 +2,7 @@ import { ServiceRepository } from "../repositories/ServiceRepository";
 import { TicketRepository } from "../repositories/TicketRepository";
 import { StatusType } from "../models/StatusType";
 import { mapTicketDAOToDTO } from "./mapperService";
+import {TicketDAO} from "../models/DAO/TicketDAO";
 
 /**
  * QueueService
@@ -51,6 +52,27 @@ class QueueService {
     const ticket = await ticketRepo.findById(ticketId);
 
     return ticket || null;
+  }
+
+  remove(ticketId: number) {
+    for (const [serviceId, queue] of this.queues.entries()) {
+      // Filtra l'array per rimuovere il ticketId
+      const updatedQueue = queue.filter((id) => id !== ticketId);
+
+      // Aggiorna la coda nella mappa
+      this.queues.set(serviceId, updatedQueue);
+    }
+  }
+
+  async peek(serviceId: number): Promise<TicketDAO | null> {
+    this.ensureQueue(serviceId);
+    const arr = this.queues.get(serviceId)!;
+    if (arr.length === 0) return null;
+    const ticketId = arr[0]!;
+    const ticketRepo = new TicketRepository();
+    const ticket = await ticketRepo.findById(ticketId);
+
+    return ticket;
   }
 
   // helper: ritorna array di serviceId per un desk (non modifica DB)
