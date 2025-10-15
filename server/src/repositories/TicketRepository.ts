@@ -44,9 +44,18 @@ export class TicketRepository {
   }
 
   async updateStatus(id: number, status: StatusType): Promise<TicketDAO | null> {
-    const entity = await this.repository.findOneBy({ id } as any);
+    const entity = await this.repository.findOne({ where: { id } as any });
     if (!entity) return null;
-    entity.status = status;
+
+    entity.status = status as any;
+
+    if (status === StatusType.closed) {
+      entity.endedAt = new Date();       // timbro di chiusura
+    } else if (status === StatusType.open) {
+      // opzionale: se riapri un ticket, resetta l’endedAt
+      entity.endedAt = null;
+    }
+
     return this.repository.save(entity);
   }
 
