@@ -23,13 +23,12 @@ export default function DeskSelectPage() {
 
 
   useEffect(() => {
-    if (!ticketId) return; // don't subscribe if there's no ticket
+    if (!ticket) return; // don't subscribe if there's no ticket
 
 
     // Subscribe to ticket updates
     const unsubscribe = subscribeToTickets((data) => {
       // Check if the event is for this specific ticket
-      console.log('Received ticket update:', data);
       setDesk(data?.managedBy);
       const calledId = data?.id;
       if (ticket && calledId === ticket.id) {
