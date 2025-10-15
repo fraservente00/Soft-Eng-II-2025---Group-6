@@ -10,59 +10,73 @@ import {
   Chip,
   Tooltip,
 } from "@mui/material";
-import {TicketDto} from "../DTOs/ticketDto";
 import CloseIcon from "@mui/icons-material/Close";
 import {useParams} from "react-router-dom";
-import {callNext, getDesk, updateTicketStatus} from "../api/api.js";
-
-//import { useState } from "react";
+import {callNext, getDesk, getQueue, getServiceByDeskId, getTicketById, updateTicketStatus} from "../api/api.js";
 
 
 export default function OfficerDashboard() {
-  // TODO: fetch queues from API based on idDesk
-  // const [queues, setQueues] = useState([]);
-  // useEffect(() => {
-  //   getQueuesByDeskId(idDesk).then((data) => setQueues(data));
-  // }, [idDesk]);
 
-  // Mock data for queues and tickets
-  const [queues, setQueues] = useState([
-    {
-      id: 1,
-      name: "Service 1",
-      tickets: [
-        new TicketDto({id: 1, Status: "open"}),
-        new TicketDto({id: 2, Status: "open"}),
-        new TicketDto({id: 3, Status: "open"}),
-      ],
-      currentIndex: 0,
-      lastServed: null,
-    },
-    {
-      id: 2,
-      name: "Service 2",
-      tickets: [
-        new TicketDto({id: 4, Status: "open"}),
-        new TicketDto({id: 5, Status: "open"}),
-        new TicketDto({id: 6, Status: "open"}),
-      ],
-      currentIndex: 1,
-      lastServed: null,
-    },
-  ]);
-
-  const [currentTicketId, setCurrentTicketId] = useState(1); // TODO: get from state (ticket id)
+  const [currentTicketId, setCurrentTicketId] = useState(null); // TODO: get from state (ticket id)
 
   const {deskId} = useParams();
 
   const [currentDesk, setCurrenDesk] = useState(null);
+  const [services, setServices] = useState([])
+
+  const [queues, setQueues] = useState(new Map());
+
+  const [ticketStatus, setTicketStatus] = useState(null);
 
   useEffect(() => {
     (async () => {
+        if (currentTicketId === null) return;
 
+        const ticket = await getTicketById(currentTicketId);
+        setTicketStatus(ticket.status)
+      }
+
+    )();
+  }, [currentTicketId]);
+
+  useEffect(() => {
+    async function initDeskAndService() {
       setCurrenDesk(await getDesk(deskId))
-    })()
-  }, []);
+      const ser = await getServiceByDeskId(deskId)
+      console.log("useEffect 1 -> services")
+      console.log(ser)
+      setServices(ser)
+
+    }
+
+    initDeskAndService().then()
+  }, [deskId]);
+
+
+  useEffect(() => {
+    console.log("useEffect 2 ")
+    if (!services || services.length === 0) return;
+
+    async function initQueues() {
+      const newQueues = new Map();
+
+      await Promise.all(
+        services.map(async (service) => {
+          const tickets = await getQueue(service.id);
+          newQueues.set(service.id, tickets || []);
+
+          console.log("useEffect 2 -> newQueues ")
+          console.log(newQueues)
+        })
+      );
+
+      setQueues(newQueues);
+    }
+
+    initQueues().then()
+
+
+  }, [services]);
 
 
   // Function to close a ticket by its ID
@@ -70,20 +84,24 @@ export default function OfficerDashboard() {
     try {
       // call API to close the ticket
       console.log(ticketId)
-      const closed = await updateTicketStatus(ticketId, "closed");
-      //console.log("closed obj")
-      //console.log(closed)
+      await updateTicketStatus(ticketId, "closed");
+      setTicketStatus("closed")
       //if (closed.success) {
-        console.log("update queus...")
-        //TODO: update timeEnded of the ticket in the backend
-        setQueues((prevQueues) =>
-          prevQueues.map((queue) => ({
-            ...queue,
-            tickets: queue.tickets.map((ticket) =>
-              ticket.id === ticketId ? {...ticket, Status: "closed"} : ticket
-            ),
-          }))
-        );
+      console.log("update queus...")
+      //TODO: update timeEnded of the ticket in the backend
+      setQueues((prevQueues) => {
+        const newQueues = new Map(prevQueues); // copia della mappa esistente
+
+        for (const [serviceId, tickets] of newQueues.entries()) {
+          // cerca se il ticket è in questa coda
+          const updatedTickets = tickets.map((t) =>
+            t.id === ticketId ? {...t, Status: "closed"} : t
+          );
+          newQueues.set(serviceId, updatedTickets);
+        }
+
+        return newQueues;
+      });
       //}
     } catch (e) {
       console.error("Error closing the ticket:", e);
@@ -92,54 +110,40 @@ export default function OfficerDashboard() {
 
   };
 
-  const getStatusTicket = (ticketId) => {
-    const ticket = queues
-      .flatMap((queue) => queue.tickets)
-      .find((t) => t.id === ticketId);
-    return ticket ? ticket.Status : null;
-  };
 
   const handleNext = async () => {
-    // TODO: update timeStrted of the current ticket in the backend
+      // TODO: update timeStrted of the current ticket in the backend
 
+      try {
+        const currentTicket = await callNext(deskId);
+        console.log("response of callNext fun")
+        console.log(currentTicket)
 
-    // Increment current ticket (for demo purposes)
-    try {
-      const currentTicket = await callNext(deskId);
-      console.log("response of callNext fun")
-      console.log(currentTicket)
-
-      //if (currentTicket.success){
 
         // Update the currentTicketId state
         setCurrentTicketId(currentTicket.id)
 
-        // Update queues removing the current ticket from its queue
-        setQueues((prevQueues) =>
-          prevQueues.map((queue) => {
-            // If the queue contains the current ticket
-            if (queue.tickets.some((t) => t.id === currentTicketId)) {
-              return {
-                ...queue,
-                // Remove the current ticket from tickets
-                tickets: queue.tickets.filter((t) => t.id !== currentTicketId),
-                // Update lastServed
-                lastServed: queue.tickets.find((t) => t.id === currentTicketId),
-              };
+        // Aggiorna la Map delle queues
+        setQueues((prevQueues) => {
+          const newQueues = new Map(prevQueues);
+
+          for (const [serviceId, tickets] of newQueues.entries()) {
+            if (tickets.some((t) => t.id === currentTicket.id)) {
+              const updatedTickets = tickets.filter((t) => t.id !== currentTicket.id);
+              newQueues.set(serviceId, updatedTickets);
             }
-            // Otherwise return the queue unchanged
-            return queue;
-          })
-        );
-      //}
+          }
+
+          return newQueues;
+        });
 
 
-    } catch (e) {
-      console.error("Error reaching next ticket:", e);
+      } catch
+        (e) {
+        console.error("Error reaching next ticket:", e);
+      }
     }
-
-    //setCurrentTicketId((prev) => prev + 1);
-  };
+  ;
 
   /**
    * idDesk -> servizi associati -> queues
@@ -160,19 +164,18 @@ export default function OfficerDashboard() {
       <Typography variant="h4" textAlign="center" gutterBottom>
         {currentDesk?.name}
       </Typography>
+
       <Typography variant="h4" textAlign="center" gutterBottom>
         🎟 Manage Ticket Queues
       </Typography>
 
-      <Grid
-        container
-        spacing={4}
-        justifyContent="center"
-        sx={{maxWidth: 1200}}
-      >
-        {queues.map((queue) => {
+      <Grid container spacing={4} justifyContent="center" sx={{maxWidth: 1200}}>
+        {Array.from(queues.entries()).map(([serviceId, tickets]) => {
+          const service = services.find((s) => s.id === serviceId);
+          if (!service) return null;
+
           return (
-            <Grid item xs={12} md={5} key={queue.id}>
+            <Grid item xs={12} md={5} key={serviceId}>
               <Card
                 sx={{
                   p: 4,
@@ -180,44 +183,36 @@ export default function OfficerDashboard() {
                   boxShadow: 4,
                   border: "1px solid #e0e0e0",
                   transition: "0.3s",
-                  "&:hover": {
-                    boxShadow: 6,
-                    transform: "translateY(-4px)",
-                  },
+                  "&:hover": {boxShadow: 6, transform: "translateY(-4px)"},
                   minWidth: 300,
                   bgcolor: "background.paper",
                 }}
               >
-                <Typography
-                  variant="h6"
-                  gutterBottom
-                  sx={{textTransform: "uppercase"}}
-                >
-                  #{queue.name}
+                <Typography variant="h6" gutterBottom sx={{textTransform: "uppercase"}}>
+                  {service.name}
                 </Typography>
 
                 <List>
-                  {queue.tickets.map((ticket) => (
+                  {tickets?.map((ticket) => (
                     <ListItem
-                      key={ticket.id}
+                      key={`${serviceId}-${ticket}`}
                       sx={{
                         borderRadius: 1,
                         border: "1px solid #ddd",
                         mb: 1,
                         bgcolor:
-                          ticket.id === currentTicketId
+                          ticket === currentTicketId
                             ? "rgba(33, 150, 243, 0.1)"
                             : "transparent",
-                        fontWeight:
-                          ticket.id === currentTicketId ? "bold" : "normal",
+                        fontWeight: ticket === currentTicketId ? "bold" : "normal",
                         display: "flex",
                         justifyContent: "space-between",
                       }}
                     >
-                      <span>#{ticket.id}</span>
-                      {ticket.id === currentTicketId && (
+                      <span>#{ticket}</span>
+                      {ticket === currentTicketId && (
                         <Box>
-                          {getStatusTicket(ticket.id) === "open" ? (
+                          {ticketStatus === "open" ? (
                             <Tooltip title="Click to close this ticket">
                               <Chip
                                 icon={<CloseIcon/>}
@@ -225,14 +220,11 @@ export default function OfficerDashboard() {
                                 color="error"
                                 size="small"
                                 variant="outlined"
-                                onClick={() => closeTicket(ticket.id)}
+                                onClick={() => closeTicket(ticket)}
                                 sx={{
                                   ml: 1,
                                   cursor: "pointer",
-                                  "&:hover": {
-                                    backgroundColor: "error.main",
-                                    color: "white",
-                                  },
+                                  "&:hover": {backgroundColor: "error.main", color: "white"},
                                 }}
                               />
                             </Tooltip>
@@ -242,44 +234,22 @@ export default function OfficerDashboard() {
                               color="secondary"
                               size="small"
                               variant="filled"
-                              sx={{
-                                ml: 1,
-                                cursor: "pointer",
-                                "&:hover": {
-                                  backgroundColor: "secondary.main",
-                                  color: "white",
-                                },
-                              }}
+                              sx={{ml: 1}}
                             />
                           )}
 
-                          <Chip
-                            label="Current"
-                            color="primary"
-                            size="small"
-                            sx={{ml: 1}}
-                          />
+                          <Chip label="Current" color="primary" size="small" sx={{ml: 1}}/>
                         </Box>
                       )}
                     </ListItem>
                   ))}
                 </List>
-
-                {queue.lastServed && (
-                  <Typography
-                    variant="body2"
-                    color="text.secondary"
-                    sx={{mt: 1}}
-                  >
-                    Last served: #{queue.lastServed.id}
-                  </Typography>
-                )}
               </Card>
             </Grid>
           );
         })}
 
-        {/* Next Ticket + Current Ticket Info */}
+        {/* Current Ticket + Next Ticket */}
         <Box
           sx={{
             mt: 4,
@@ -287,10 +257,9 @@ export default function OfficerDashboard() {
             display: "flex",
             justifyContent: "center",
             alignItems: "center",
-            gap: 5, // spazio tra le due sezioni
+            gap: 5,
           }}
         >
-          {/* Current ticket info */}
           <Card
             sx={{
               p: 2,
@@ -305,18 +274,11 @@ export default function OfficerDashboard() {
             <Typography variant="subtitle2" gutterBottom>
               Current Ticket
             </Typography>
-            <Box
-              sx={{
-                display: "flex",
-                alignItems: "baseline",
-                gap: 3,
-                mb: 1,
-              }}
-            >
+            <Box sx={{display: "flex", alignItems: "baseline", gap: 3, mb: 1}}>
               <Typography variant="h5" fontWeight="bold" gutterBottom>
                 #{currentTicketId}
               </Typography>
-              {getStatusTicket(currentTicketId) === "open" ? (
+              {ticketStatus === "open" ? (
                 <Tooltip title="Click to close this ticket">
                   <Chip
                     icon={<CloseIcon/>}
@@ -325,49 +287,30 @@ export default function OfficerDashboard() {
                     size="small"
                     variant="outlined"
                     onClick={() => closeTicket(currentTicketId)}
-                    sx={{
-                      cursor: "pointer",
-                      "&:hover": {
-                        backgroundColor: "error.main",
-                        color: "white",
-                      },
-                    }}
+                    sx={{cursor: "pointer", "&:hover": {backgroundColor: "error.main", color: "white"}}}
                   />
                 </Tooltip>
               ) : (
-                <Chip
-                  label="Closed"
-                  color="secondary"
-                  size="small"
-                  variant="filled"
-                  sx={{cursor: "pointer"}}
-                />
+                <Chip label="Closed" color="secondary" size="small" variant="filled"/>
               )}
             </Box>
           </Card>
 
-          {/* Next Ticket button */}
           <Button
             variant="contained"
             color="primary"
             onClick={handleNext}
             disabled={
-              queues.every((queue) => queue.tickets.length === 0) ||
-              getStatusTicket(currentTicketId) === "open"
+              Array.from(queues.values()).every((tickets) => tickets.length === 0) ||
+              ticketStatus === "open"
             }
-            sx={{
-              px: 4,
-              py: 2,
-              fontSize: "1rem",
-              borderRadius: "20px",
-              minWidth: 150,
-              boxShadow: 3,
-            }}
+            sx={{px: 4, py: 2, fontSize: "1rem", borderRadius: "20px", minWidth: 150, boxShadow: 3}}
           >
             ▶ Next Ticket
           </Button>
         </Box>
       </Grid>
+
     </Box>
   );
 }

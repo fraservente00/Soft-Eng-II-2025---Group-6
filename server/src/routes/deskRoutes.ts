@@ -1,5 +1,6 @@
 import { Router } from "express";
 import * as deskController from "../controllers/deskController";
+import * as serviceController from  "../controllers/serviceController"
 
 const router = Router();
 
@@ -36,5 +37,15 @@ router.get("/:id/next", async (req, res, next) => {
     return res.json(result);
   } catch (e) { next(e); }
 });
+
+
+router.get("/:id/services", async (req, res, next) => {
+  try {
+    const result = await serviceController.getServicesByDeskId(Number(req.params.id));
+    if (!result) return res.status(204).send();
+    return res.json(result);
+  } catch (e) { next(e); }
+});
+
 
 export default router;
