@@ -9,14 +9,9 @@ import OfficerDashboard from "./pages/OfficerDashboard";
 // Pages (implemented below)
 import RoleSelectPage from './pages/RoleSelectPage';
 import DeskSelectPage from './pages/DeskSelectPage';
+import TicketSelectPage from "./pages/TicketSelectPage";
+import CustomerHomePage from "./pages/CustomerHomePage";
 
-// Temporary placeholder until Flavia's dashboard is ready
-const OfficierDashboardPlaceholder = () => (
-    <div style={{padding: 24}}>
-        <h2>Dashboard</h2>
-        <p>You are in <b>officier</b> mode. The final dashboard will be mounted here.</p>
-    </div>
-);
 
 // Guard that requires a role (and optionally a specific one)
 const RoleGuard = ({children, required}) => {
@@ -69,7 +64,7 @@ function App() {
                         }
                     />
 
-                    {/* 3) Dashboard (Flavia) — requires officier + selected desk */}
+                    {/* 3) Dashboard— requires officier + selected desk */}
                     <Route
                         path="/desk/:deskId"
                         element={
@@ -80,13 +75,9 @@ function App() {
                             </OfficierDeskGuard>
                         }
                     />
-
-                    {/* Customer: once Era ships the ticket selection page, route here */}
-                    <Route path="/customer" element={<Navigate to="/customer/tickets" replace/>}/>
-                    {/* Optional temporary placeholder to avoid 404:
-        <Route path="/customer/tickets" element={<div style={{padding:24}}>Customer ticket selection (by Era)</div>} />
-        */}
-
+                    <Route path="/customer" element={<Navigate to="/customer/tickets" replace/>} />
+                    <Route path="/customer/tickets" element={<TicketSelectPage/>} />
+                    <Route path="/customer/tickets/:ticketId" element={<CustomerHomePage/>} />
                     {/* Fallback */}
                     <Route path="*" element={<Navigate to="/role" replace/>}/>
                 </Routes>
