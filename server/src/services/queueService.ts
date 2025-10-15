@@ -65,6 +65,11 @@ class QueueService {
     for (const [k, v] of this.queues.entries()) obj[String(k)] = [...v];
     return obj;
   }
+
+  getQueuePerId(serviceId: number): number[] {
+    this.ensureQueue(serviceId);
+    return (this.queues.get(serviceId)!); // We are sure the calls to queues.get() won't return null
+  }
 }
 
 export default new QueueService();

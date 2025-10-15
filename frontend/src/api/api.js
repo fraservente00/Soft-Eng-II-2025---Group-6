@@ -126,9 +126,9 @@ export function subscribeToTickets(onMessage) {
 
 
 /* ------------------ QUEUES ------------------ */
-export async function getQueues() {
+export async function getQueue(id) {
   try {
-    const res = await fetch(`${API_BASE}/queues`);
+    const res = await fetch(`${API_BASE}/queues/${id}`);
     if (!res.ok) throw new Error(`Errore GET /queues: ${res.status} ${res.statusText}`);
     return res.json();
   } catch (err) {
