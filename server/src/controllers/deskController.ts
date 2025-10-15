@@ -88,6 +88,15 @@ export async function callNext(deskId: number) {
     const ticketDAO = await queueService.dequeue(svcId); // <-- cambia qui
     if (!ticketDAO) continue;
 
+    ticketDAO.managedBy = deskDAO;
+
+    const ticket = mapTicketDAOToDTO(ticketDAO);
+
+    await callTicket(ticket); // dovrebbe mandare l'evento SSE
+    // assegna il ticket al desk e setta TimeStarted / status
+    ticketDAO.status = StatusType.open as any;
+    //ticketDAO.TimeStarted = new Date();
+
     // opzionale: se vuoi registrare chi lo sta gestendo
     ticketDAO.managedBy = deskDAO;
 
