@@ -3,6 +3,30 @@
 
 ---
 
+## ▶️ How to run the project
+
+In order to run the project, you need to start both the backend server and the frontend application.
+
+For starting the backend server, follow these commands:
+
+cd server
+npm install
+
+npm run dev
+(Server su: http://localhost:3000 – health: /healthz)
+
+For starting the frontend application, follow these commands:
+
+cd frontend 
+npm install
+
+npm run dev
+(Vite dev server con proxy /api verso http://localhost:3000)
+
+You will find the website at URL: http://localhost:5173 (initial redirect to /role).
+
+
+
 ## ⚡ API Backend
 
 ### **Desk Routes**
@@ -70,3 +94,4 @@ getQueues()             // GET /api/queues
 
 // Stats
 getDailyStats()         // GET /api/stats/daily
+
