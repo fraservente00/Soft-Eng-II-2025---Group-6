@@ -52,8 +52,7 @@ export default function OfficerDashboard() {
     initDeskAndService().then()
   }, [deskId]);
 
-
-  useEffect(() => {
+  /*useEffect(() => {
     console.log("useEffect 2 ")
     if (!services || services.length === 0) return;
 
@@ -76,6 +75,36 @@ export default function OfficerDashboard() {
     initQueues().then()
 
 
+  }, [services]);
+
+   */
+
+  // sostituisce la useEffect sopra, anzichè chiamare l'api delle code solo la prima volta
+  // viene chiamata periodicamente
+  useEffect(() => {
+    if (!services || services.length === 0) return;
+
+    async function initQueues() {
+      const newQueues = new Map();
+
+      await Promise.all(
+        services.map(async (service) => {
+          const tickets = await getQueue(service.id);
+          newQueues.set(service.id, tickets || []);
+
+          console.log("useEffect 2 -> newQueues ")
+          console.log(newQueues)
+        })
+      );
+
+      setQueues(newQueues);
+    }
+    // subito
+    initQueues().then()
+
+    // ogni x sec
+    const intervalId = setInterval(initQueues, 5000);
+    return () => clearInterval(intervalId);
   }, [services]);
 
 
@@ -115,28 +144,35 @@ export default function OfficerDashboard() {
       // TODO: update timeStrted of the current ticket in the backend
 
       try {
+
+        if(currentTicketId !== null && ticketStatus !== "open") {
+          // Aggiorna la coda, rimuovendo quello appena chiuso
+          setQueues((prevQueues) => {
+            const newQueues = new Map(prevQueues);
+
+            for (const [serviceId, tickets] of newQueues.entries()) {
+              if (tickets.some((t) => t === currentTicketId)) {
+                const updatedTickets = tickets.filter((t) => t !== currentTicketId);
+                newQueues.set(serviceId, updatedTickets);
+              }
+            }
+
+            return newQueues;
+          });
+
+        }
+
+        // recupero il next ticket (che diventa current)
         const currentTicket = await callNext(deskId);
         console.log("response of callNext fun")
         console.log(currentTicket)
 
-
-        // Update the currentTicketId state
-        setCurrentTicketId(currentTicket.id)
-
-        // Aggiorna la Map delle queues
-        setQueues((prevQueues) => {
-          const newQueues = new Map(prevQueues);
-
-          for (const [serviceId, tickets] of newQueues.entries()) {
-            if (tickets.some((t) => t.id === currentTicket.id)) {
-              const updatedTickets = tickets.filter((t) => t.id !== currentTicket.id);
-              newQueues.set(serviceId, updatedTickets);
-            }
-          }
-
-          return newQueues;
-        });
-
+        if (currentTicket === null) {
+          setCurrentTicketId(null)
+        } else {
+          // Update the currentTicketId state
+          setCurrentTicketId(currentTicket.id)
+        }
 
       } catch
         (e) {
@@ -170,7 +206,8 @@ export default function OfficerDashboard() {
       </Typography>
 
       <Grid container spacing={4} justifyContent="center" sx={{maxWidth: 1200}}>
-        {Array.from(queues.entries()).map(([serviceId, tickets]) => {
+        {/* sorto per chiave */}
+        {Array.from(queues.entries()).sort((a,b) => a[0]-b[0]).map(([serviceId, tickets]) => {
           const service = services.find((s) => s.id === serviceId);
           if (!service) return null;
 
@@ -260,41 +297,44 @@ export default function OfficerDashboard() {
             gap: 5,
           }}
         >
-          <Card
-            sx={{
-              p: 2,
-              minWidth: 200,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              boxShadow: 4,
-              borderRadius: 3,
-            }}
-          >
-            <Typography variant="subtitle2" gutterBottom>
-              Current Ticket
-            </Typography>
-            <Box sx={{display: "flex", alignItems: "baseline", gap: 3, mb: 1}}>
-              <Typography variant="h5" fontWeight="bold" gutterBottom>
-                #{currentTicketId}
+          {currentTicketId !== null && (
+            <Card
+              sx={{
+                p: 2,
+                minWidth: 200,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                boxShadow: 4,
+                borderRadius: 3,
+              }}
+            >
+              <Typography variant="subtitle2" gutterBottom>
+                Current Ticket
               </Typography>
-              {ticketStatus === "open" ? (
-                <Tooltip title="Click to close this ticket">
-                  <Chip
-                    icon={<CloseIcon/>}
-                    label="Close"
-                    color="error"
-                    size="small"
-                    variant="outlined"
-                    onClick={() => closeTicket(currentTicketId)}
-                    sx={{cursor: "pointer", "&:hover": {backgroundColor: "error.main", color: "white"}}}
-                  />
-                </Tooltip>
-              ) : (
-                <Chip label="Closed" color="secondary" size="small" variant="filled"/>
-              )}
-            </Box>
-          </Card>
+              <Box sx={{display: "flex", alignItems: "baseline", gap: 3, mb: 1}}>
+                <Typography variant="h5" fontWeight="bold" gutterBottom>
+                  #{currentTicketId}
+                </Typography>
+                {ticketStatus === "open" ? (
+                  <Tooltip title="Click to close this ticket">
+                    <Chip
+                      icon={<CloseIcon/>}
+                      label="Close"
+                      color="error"
+                      size="small"
+                      variant="outlined"
+                      onClick={() => closeTicket(currentTicketId)}
+                      sx={{cursor: "pointer", "&:hover": {backgroundColor: "error.main", color: "white"}}}
+                    />
+                  </Tooltip>
+                ) : (
+                  <Chip label="Closed" color="secondary" size="small" variant="filled"/>
+                )}
+              </Box>
+            </Card>
+          )}
+
 
           <Button
             variant="contained"
@@ -306,7 +346,8 @@ export default function OfficerDashboard() {
             }
             sx={{px: 4, py: 2, fontSize: "1rem", borderRadius: "20px", minWidth: 150, boxShadow: 3}}
           >
-            ▶ Next Ticket
+            {currentTicketId !== null ? ("▶ Next Ticket") : ("Start Working")}
+
           </Button>
         </Box>
       </Grid>

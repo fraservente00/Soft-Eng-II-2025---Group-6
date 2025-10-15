@@ -85,14 +85,15 @@ export async function callNext(deskId: number) {
   // scorri i servizi gestiti dal desk e prova a prelevare il primo ticket
   for (const svc of deskDAO.services || []) {
     const svcId = (svc as any).id;
-    const ticketDAO = await queueService.dequeue(svcId);
+    // resituisco il ticket ma non lo tolgo dalla coda
+    const ticketDAO = await queueService.peek(svcId);
     if (!ticketDAO) continue;
     const ticket = mapTicketDAOToDTO(ticketDAO);
     await callTicket(ticket); // dovrebbe mandare l'evento SSE
     // assegna il ticket al desk e setta TimeStarted / status
     ticketDAO.managedBy = deskDAO;
     ticketDAO.status = StatusType.open as any;
-    ticketDAO.TimeStarted = new Date();
+    //ticketDAO.TimeStarted = new Date();
 
     const updated = await ticketRepo.update(ticketDAO.id, ticketDAO);
     if (!updated) continue;
