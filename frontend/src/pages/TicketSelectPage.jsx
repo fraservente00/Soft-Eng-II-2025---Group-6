@@ -1,8 +1,6 @@
-import { Container, Paper, Stack, Typography, Button, Autocomplete, TextField } from '@mui/material';
-import PersonOutlineIcon from '@mui/icons-material/PersonOutline';
+import { Container, Paper, Stack, Typography, Button, Autocomplete, TextField, CircularProgress, Alert } from '@mui/material';
 import BadgeIcon from '@mui/icons-material/Badge';
 import { useNavigate } from 'react-router-dom';
-import useRole from '../hooks/useRole';
 import { getServices, createTicket } from '../api/api';
 import { useEffect, useState } from 'react';
     
@@ -12,6 +10,7 @@ export default function TicketSelectPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selected, setSelected] = useState(null);
+  const [creating, setCreating] = useState(false);
 
 
   useEffect(() => {
@@ -33,14 +32,15 @@ export default function TicketSelectPage() {
   const selectService = async (service) => {
     if (!service || service.id == null) return;
 
-    const ticket = {
-      service: service,
-      status: 'open',
-      createdAt: Date.now(),
+    try {
+      setCreating(true);
+      // send a small, serializable payload
+      const payload = { service: service,  status: 'open' };
+      const createdTicket = await createTicket(payload);
+      navigate(`/customer/tickets/${createdTicket.id}`);
+    } finally {
+      setCreating(false);
     }
-
-    const createdTicket = await createTicket(ticket);
-    navigate(`/customer/tickets/${createdTicket.id}`);
   }
 
 
@@ -63,29 +63,35 @@ export default function TicketSelectPage() {
             {!loading && !error && (
               <>
                 <Autocomplete
+                  value={selected}
+                  onChange={(_e, newValue) => setSelected(newValue)}
                   options={services}
-                  getOptionLabel={(opt) => opt.name || ''}
-                  onChange={(_, value) => setSelected(value)}
-                  renderOption={(props, option) => (
-                    <li {...props}>
-                      <BadgeIcon fontSize="small" sx={{ mr: 1 }} />
-                      {option.name}
-                    </li>
-                  )}
+                  autoHighlight
+                  fullWidth
+                  getOptionLabel={(opt) => opt?.name ? String(opt.name) : ''}
+                  isOptionEqualToValue={(opt, val) => String(opt.id) === String(val?.id)}
+                  renderOption={(props, option) => {
+                    const { key, ...rest } = props;
+                    return (
+                      <li key={option.id ?? key} {...rest}>
+                        <BadgeIcon fontSize="small" sx={{ mr: 1 }} />
+                        {option.name}
+                      </li>
+                    );
+                  }}
                   renderInput={(params) => <TextField {...params} label="Choose a service" variant="outlined" />}
-                  isOptionEqualToValue={(o, v) => o.id === v.id}
                 />
 
                 <Stack direction="row" justifyContent="flex-end" spacing={1}>
-                  <Button variant="outlined" onClick={() => navigate('/role')} disabled={loading}>
+                  <Button variant="outlined" onClick={() => navigate('/role')} disabled={loading || creating}>
                       Back
                   </Button>
                   <Button
                       variant="contained"
                       onClick={() => selectService(selected)}
-                      disabled={loading || !selected || selected.id == null}
+                      disabled={loading || creating || !selected || selected.id == null}
                     >
-                      Confirm
+                      {creating ? <CircularProgress size={18} /> : 'Confirm'}
                   </Button>
               </Stack>
               </>
