@@ -43,8 +43,8 @@ export default function OfficerDashboard() {
     async function initDeskAndService() {
       setCurrenDesk(await getDesk(deskId))
       const ser = await getServiceByDeskId(deskId)
-      console.log("useEffect 1 -> services")
-      console.log(ser)
+      // console.log("useEffect 1 -> services")
+      // console.log(ser)
       setServices(ser)
 
     }
@@ -92,8 +92,8 @@ export default function OfficerDashboard() {
           const tickets = await getQueue(service.id);
           newQueues.set(service.id, tickets || []);
 
-          console.log("useEffect 2 -> newQueues ")
-          console.log(newQueues)
+          // console.log("useEffect 2 -> newQueues ")
+          // console.log(newQueues)
         })
       );
 
@@ -112,11 +112,11 @@ export default function OfficerDashboard() {
   const closeTicket = async (ticketId) => {
     try {
       // call API to close the ticket
-      console.log(ticketId)
+      // console.log(ticketId)
       await updateTicketStatus(ticketId, "closed");
       setTicketStatus("closed")
       //if (closed.success) {
-      console.log("update queus...")
+      // console.log("update queus...")
       //TODO: update timeEnded of the ticket in the backend
       setQueues((prevQueues) => {
         const newQueues = new Map(prevQueues); // copia della mappa esistente
@@ -164,8 +164,8 @@ export default function OfficerDashboard() {
 
         // recupero il next ticket (che diventa current)
         const currentTicket = await callNext(deskId);
-        console.log("response of callNext fun")
-        console.log(currentTicket)
+        // console.log("response of callNext fun")
+        // console.log(currentTicket)
 
         if (currentTicket === null) {
           setCurrentTicketId(null)
