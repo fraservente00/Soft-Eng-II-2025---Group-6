@@ -5,6 +5,7 @@ import { NotFoundError } from "../models/errors/NotFoundError";
 import { StatusType } from "../models/StatusType";
 import { Request, Response } from "express";
 import { addClient } from "../services/callService";
+import queueService from "../services/queueService";
 
 /**
  * Get all tickets
@@ -66,6 +67,10 @@ export async function createTicket(ticketDto: Ticket): Promise<Ticket> {
 
   // Save DAO
   const createdTicket = await ticketRepo.create(ticketDAO);
+
+  // push in memoria (fallback al DB è già coperto da init)
+  // createdTicket è TicketDAO: ha id e service.id
+  queueService.enqueue(createdTicket);
 
   // Map DAO → DTO
   return mapTicketDAOToDTO(createdTicket);

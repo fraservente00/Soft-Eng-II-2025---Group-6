@@ -136,23 +136,20 @@ export function mapTicketDTOToDAO(ticket: Ticket): TicketDAO {
   if (ticket.endedAt !== undefined) dao.endedAt = ticket.endedAt;
 
   if (ticket.service) {
-    // For relations, it's usually enough to set the id
-    dao.service = new ServiceDAO();
-    if (ticket.service.id !== undefined) dao.service.id = ticket.service.id;
-    if (ticket.service.name !== undefined) dao.service.name = ticket.service.name;
-    if (ticket.service.estimatedTime !== undefined)
-      dao.service.estimatedTime = ticket.service.estimatedTime;
-  }
+  dao.service = new ServiceDAO();
+  if (ticket.service.id !== undefined) dao.service.id = ticket.service.id;
+  // Remove setting name/estimatedTime here, let TypeORM handle the relation
+}
 
-  if (ticket.managedBy !== undefined) {
-    if (ticket.managedBy === null) {
-      dao.managedBy = null;
-    } else {
-      dao.managedBy = new DeskDAO();
-      if (ticket.managedBy.id !== undefined) dao.managedBy.id = ticket.managedBy.id;
-      if (ticket.managedBy.name !== undefined) dao.managedBy.name = ticket.managedBy.name;
-    }
+if (ticket.managedBy !== undefined) {
+  if (ticket.managedBy === null) {
+    dao.managedBy = null;
+  } else {
+    dao.managedBy = new DeskDAO();
+    if (ticket.managedBy.id !== undefined) dao.managedBy.id = ticket.managedBy.id;
+    // Remove setting name
   }
+}
 
   return dao;
 }

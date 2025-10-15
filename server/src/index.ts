@@ -4,12 +4,11 @@ import { AppDataSource } from "./data-source";
 import routes from "./routes"; // <-- usa SOLO questo
 
 const PORT = Number(process.env.PORT ?? 3000);
-
+export const app = express();
 async function main() {
   await AppDataSource.initialize();
   console.log("[DB] DataSource initialized");
 
-  const app = express();
 
   // Middlewares
   app.use(express.json());

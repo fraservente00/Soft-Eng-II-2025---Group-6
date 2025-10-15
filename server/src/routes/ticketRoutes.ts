@@ -50,25 +50,23 @@ router.get("/desk/:deskId", async (req, res, next) => {
   try { res.json(await ticketController.getTicketETA(req.params.code)); } catch (e) { next(e); }
 });*/
 
-const app = express();
-app.use(cors());
 
 let clients: any[] = [];
 
-// SSE endpoint
-app.get("/subscribe", (req, res) => {
-  res.setHeader("Content-Type", "text/event-stream");
-  res.setHeader("Cache-Control", "no-cache");
-  res.setHeader("Connection", "keep-alive");
+ // SSE endpoint
+ router.get("/subscribe", (req, res) => {
+   res.setHeader("Content-Type", "text/event-stream");
+   res.setHeader("Cache-Control", "no-cache");
+   res.setHeader("Connection", "keep-alive");
 
-  // Add the client to our list
+   // Add the client to our list
   clients.push(res);
 
   // Remove client when disconnected
-  req.on("close", () => {
-    clients = clients.filter(c => c !== res);
-  });
-});
+   req.on("close", () => {
+     clients = clients.filter(c => c !== res);
+   });
+ });
 
-app.listen(3000, () => console.log("SSE server running on port 3000"));
+
 export default router;
