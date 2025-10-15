@@ -19,6 +19,7 @@ npm run dev
 For starting the frontend application, follow these commands:
 
 cd frontend 
+
 npm install
 
 npm run dev
