@@ -1,270 +1,317 @@
-import { In, Repository } from "typeorm";
-import { AppDataSource } from "../../data-source";
-import { TicketDAO } from "../../models/DAO/TicketDAO";
-import { ServiceDAO } from "../../models/DAO/ServiceDAO";
-import { DeskDAO } from "../../models/DAO/DeskDAO";
-import { TicketRepository } from "../../repositories/TicketRepository";
-import { StatusType } from "../../models/StatusType"; // Assicurati che questo import sia corretto per il tipo
+import "reflect-metadata"; // Importante per TypeORM
+import { Repository, SelectQueryBuilder } from "typeorm";
+import { AppDataSource } from "../../data-source"; // Percorso aggiornato
+import { TicketDAO } from "../../models/DAO/TicketDAO"; // Percorso aggiornato
+import { StatusType } from "../../models/StatusType"; // Percorso aggiornato
+import { ServiceDAO } from "../../models/DAO/ServiceDAO"; // Per i mock delle relazioni
+import { DeskDAO } from "../../models/DAO/DeskDAO"; // Per i mock delle relazioni
+import { TicketRepository } from "../../repositories/TicketRepository"; // Percorso aggiornato
 
-// I mock per typeorm e AppDataSource dovrebbero essere gestiti globalmente
-// o in un setup.ts, ma li includo qui per completezza se non lo fossero.
-jest.mock("typeorm", () => {
-    const original = jest.requireActual("typeorm");
-    return {
-        ...original,
-        In: jest.fn((x) => x),
-        Repository: jest.fn().mockImplementation(() => ({
-            find: jest.fn(),
-            findOne: jest.fn(),
-            save: jest.fn(),
-            delete: jest.fn(),
-            createQueryBuilder: jest.fn(),
-        })),
-    };
-});
+// --- Inizio configurazione Mock ---
 
-jest.mock("../../data-source", () => {
-    const mockGetRepository = jest.fn();
-    return {
-        AppDataSource: {
-            getRepository: mockGetRepository,
-        },
-    };
-});
+// Oggetto mock per il TicketRepository
+const mockTicketRepository = {
+  find: jest.fn(),
+  findOneBy: jest.fn(),
+  create: jest.fn(),
+  save: jest.fn(),
+  delete: jest.fn(),
+  createQueryBuilder: jest.fn(), // Inizialmente jest.fn() semplice
+} as unknown as jest.Mocked<Repository<TicketDAO>>;
+
+// Mock di AppDataSource per restituire sempre la stessa istanza del mock del TicketRepository.
+jest.mock("../../data-source", () => ({
+  AppDataSource: {
+    getRepository: jest.fn(() => mockTicketRepository),
+  },
+}));
+
+// --- Fine configurazione Mock ---
 
 describe("TicketRepository", () => {
-    let repo: TicketRepository;
-    let mockTicketORMRepo: any;
-    let mockServiceORMRepo: any;
-    let mockDeskORMRepo: any;
+  let ticketRepository: TicketRepository;
+  let mockRepository: jest.Mocked<Repository<TicketDAO>>;
 
-    beforeEach(() => {
-        // Inizializza i mock per i repository TypeORM
-        mockTicketORMRepo = {
-            find: jest.fn(),
-            findOne: jest.fn(),
-            save: jest.fn(),
-            delete: jest.fn(),
-            createQueryBuilder: jest.fn(),
-        };
-        mockServiceORMRepo = {
-            find: jest.fn(),
-            findOne: jest.fn(),
-        };
-        mockDeskORMRepo = {
-            findOne: jest.fn(),
-        };
+  // Tipo per il mock del QueryBuilder per una migliore tipizzazione
+  type MockQueryBuilder = jest.Mocked<
+    Pick<
+      SelectQueryBuilder<TicketDAO>,
+      "innerJoin" | "where" | "getMany"
+    >
+  >;
 
-        // Configura AppDataSource.getRepository per restituire i mock corretti
-        (AppDataSource.getRepository as jest.Mock).mockImplementation((entity) => {
-            if (entity === TicketDAO) return mockTicketORMRepo;
-            if (entity === ServiceDAO) return mockServiceORMRepo;
-            if (entity === DeskDAO) return mockDeskORMRepo;
-            return new Error(`Unexpected DAO entity: ${entity}`);
-        });
+  beforeEach(() => {
+    // Resetta tutti i mock PRIMA di ogni test per garantire l'isolamento.
+    jest.clearAllMocks();
+    ticketRepository = new TicketRepository();
+    // mockRepository ora punta all'istanza globale mockTicketRepository.
+    mockRepository = mockTicketRepository;
+  });
 
-        repo = new TicketRepository();
+  // Oggetti ServiceDAO e DeskDAO minimali per i mock delle relazioni
+  const mockService: ServiceDAO = { id: 1, name: "Test Service", estimatedTime: 10, desks: [], tickets: [] };
+  const mockDesk: DeskDAO = { id: 1, name: "Test Desk", services: [], tickets: [] };
+
+
+  describe("findAll", () => {
+    it("should return all tickets", async () => {
+      const tickets: TicketDAO[] = [
+        { id: 1, status: StatusType.open, createdAt: new Date(), service: mockService, managedBy: null },
+      ];
+      mockRepository.find.mockResolvedValue(tickets);
+
+      await expect(ticketRepository.findAll()).resolves.toEqual(tickets);
+      expect(mockRepository.find).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("findById", () => {
+    it("should return a ticket by id", async () => {
+      const ticket: TicketDAO = { id: 1, status: StatusType.open, createdAt: new Date(), service: mockService, managedBy: null };
+      mockRepository.findOneBy.mockResolvedValue(ticket);
+
+      await expect(ticketRepository.findById(1)).resolves.toEqual(ticket);
+      expect(mockRepository.findOneBy).toHaveBeenCalledWith({ id: 1 });
     });
 
-    afterEach(() => {
-        jest.clearAllMocks();
-    });
+    it("should return null if ticket not found", async () => {
+      mockRepository.findOneBy.mockResolvedValue(null);
 
-    // Mock per QueryBuilder per semplificare i test che usano createQueryBuilder
-    const mockQueryBuilder = () => ({
-        where: jest.fn().mockReturnThis(),
+      await expect(ticketRepository.findById(999)).resolves.toBeNull();
+      expect(mockRepository.findOneBy).toHaveBeenCalledWith({ id: 999 });
+    });
+  });
+
+  describe("findByServiceIdStatus", () => {
+    it("should return tickets associated with a service ID and status", async () => {
+      const tickets: TicketDAO[] = [
+        { id: 1, status: StatusType.open, createdAt: new Date(), service: mockService, managedBy: null },
+      ];
+
+      const mockQueryBuilderInstance = {
         innerJoin: jest.fn().mockReturnThis(),
-        leftJoinAndSelect: jest.fn().mockReturnThis(),
-        getMany: jest.fn(),
-        getOne: jest.fn(),
+        where: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue(tickets),
+      };
+      (mockRepository.createQueryBuilder as jest.Mock).mockReturnValue(mockQueryBuilderInstance);
+
+      await expect(ticketRepository.findByServiceIdStatus(1, StatusType.open)).resolves.toEqual(tickets);
+
+      expect(mockRepository.createQueryBuilder).toHaveBeenCalledWith("ticket");
+      expect(mockQueryBuilderInstance.innerJoin).toHaveBeenCalledWith(
+        "ticket.services",
+        "service",
+        "service.id = :serviceId",
+        { serviceId: 1 }
+      );
+      expect(mockQueryBuilderInstance.where).toHaveBeenCalledWith("ticket.status = :status", { status: StatusType.open });
+      expect(mockQueryBuilderInstance.getMany).toHaveBeenCalledTimes(1);
     });
 
-    // ---------- TEST: findAll ----------
-    test("findAll() should call repo.createQueryBuilder and apply relations", async () => {
-        const tickets = [{ id: 1, status: "OPEN" as StatusType }];
-        const qb = mockQueryBuilder();
-        qb.getMany.mockResolvedValue(tickets);
-        mockTicketORMRepo.createQueryBuilder.mockReturnValue(qb);
+    it("should return an empty array if no tickets match service ID and status", async () => {
+      const emptyTickets: TicketDAO[] = [];
 
-        const result = await repo.findAll(["service", "managedBy"]);
+      const mockQueryBuilderInstance = {
+        innerJoin: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue(emptyTickets),
+      };
+      (mockRepository.createQueryBuilder as jest.Mock).mockReturnValue(mockQueryBuilderInstance);
 
-        expect(mockTicketORMRepo.createQueryBuilder).toHaveBeenCalledWith("ticket");
-        expect(qb.leftJoinAndSelect).toHaveBeenCalledWith("ticket.service", "service");
-        expect(qb.leftJoinAndSelect).toHaveBeenCalledWith("ticket.managedBy", "desk");
-        expect(qb.getMany).toHaveBeenCalled();
-        expect(result).toEqual(tickets);
+      await expect(ticketRepository.findByServiceIdStatus(999, StatusType.closed)).resolves.toEqual(emptyTickets);
+
+      expect(mockRepository.createQueryBuilder).toHaveBeenCalledWith("ticket");
+      expect(mockQueryBuilderInstance.innerJoin).toHaveBeenCalledWith(
+        "ticket.services",
+        "service",
+        "service.id = :serviceId",
+        { serviceId: 999 }
+      );
+      expect(mockQueryBuilderInstance.where).toHaveBeenCalledWith("ticket.status = :status", { status: StatusType.closed });
+      expect(mockQueryBuilderInstance.getMany).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("findByServiceId", () => {
+    it("should return tickets associated with a service ID", async () => {
+      const tickets: TicketDAO[] = [
+        { id: 1, status: StatusType.open, createdAt: new Date(), service: mockService, managedBy: null },
+      ];
+
+      const mockQueryBuilderInstance = {
+        innerJoin: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue(tickets),
+      };
+      (mockRepository.createQueryBuilder as jest.Mock).mockReturnValue(mockQueryBuilderInstance);
+
+      await expect(ticketRepository.findByServiceId(1)).resolves.toEqual(tickets);
+
+      expect(mockRepository.createQueryBuilder).toHaveBeenCalledWith("ticket");
+      expect(mockQueryBuilderInstance.innerJoin).toHaveBeenCalledWith(
+        "ticket.services",
+        "service",
+        "service.id = :serviceId",
+        { serviceId: 1 }
+      );
+      expect(mockQueryBuilderInstance.getMany).toHaveBeenCalledTimes(1);
+      expect(mockQueryBuilderInstance.where).not.toHaveBeenCalled(); // Verifichiamo che 'where' non sia chiamato
     });
 
-    test("findAll() should call repo.createQueryBuilder without relations", async () => {
-        const tickets = [{ id: 1, status: "OPEN" as StatusType }];
-        const qb = mockQueryBuilder();
-        qb.getMany.mockResolvedValue(tickets);
-        mockTicketORMRepo.createQueryBuilder.mockReturnValue(qb);
+    it("should return an empty array if no tickets match service ID", async () => {
+      const emptyTickets: TicketDAO[] = [];
 
-        const result = await repo.findAll();
+      const mockQueryBuilderInstance = {
+        innerJoin: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue(emptyTickets),
+      };
+      (mockRepository.createQueryBuilder as jest.Mock).mockReturnValue(mockQueryBuilderInstance);
 
-        expect(mockTicketORMRepo.createQueryBuilder).toHaveBeenCalledWith("ticket");
-        expect(qb.leftJoinAndSelect).not.toHaveBeenCalled();
-        expect(qb.getMany).toHaveBeenCalled();
-        expect(result).toEqual(tickets);
+      await expect(ticketRepository.findByServiceId(999)).resolves.toEqual(emptyTickets);
+
+      expect(mockRepository.createQueryBuilder).toHaveBeenCalledWith("ticket");
+      expect(mockQueryBuilderInstance.innerJoin).toHaveBeenCalledWith(
+        "ticket.services",
+        "service",
+        "service.id = :serviceId",
+        { serviceId: 999 }
+      );
+      expect(mockQueryBuilderInstance.getMany).toHaveBeenCalledTimes(1);
+      expect(mockQueryBuilderInstance.where).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("findByDeskId", () => {
+    it("should return tickets associated with a desk ID", async () => {
+      const tickets: TicketDAO[] = [
+        { id: 1, status: StatusType.open, createdAt: new Date(), service: mockService, managedBy: mockDesk },
+      ];
+
+      const mockQueryBuilderInstance = {
+        innerJoin: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue(tickets),
+      };
+      (mockRepository.createQueryBuilder as jest.Mock).mockReturnValue(mockQueryBuilderInstance);
+
+      await expect(ticketRepository.findByDeskId(1)).resolves.toEqual(tickets);
+
+      expect(mockRepository.createQueryBuilder).toHaveBeenCalledWith("ticket");
+      expect(mockQueryBuilderInstance.innerJoin).toHaveBeenCalledWith(
+        "ticket.managedBy",
+        "desk",
+        "desk.id = :deskId",
+        { deskId: 1 }
+      );
+      expect(mockQueryBuilderInstance.getMany).toHaveBeenCalledTimes(1);
+      expect(mockQueryBuilderInstance.where).not.toHaveBeenCalled();
     });
 
-    // ---------- TEST: findById ----------
-    test("findById() should call repo.createQueryBuilder with id and apply relations", async () => {
-        const ticket = { id: 1, status: "OPEN" as StatusType };
-        const qb = mockQueryBuilder();
-        qb.getOne.mockResolvedValue(ticket);
-        mockTicketORMRepo.createQueryBuilder.mockReturnValue(qb);
+    it("should return an empty array if no tickets match desk ID", async () => {
+      const emptyTickets: TicketDAO[] = [];
 
-        const result = await repo.findById(1, ["service"]);
+      const mockQueryBuilderInstance = {
+        innerJoin: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue(emptyTickets),
+      };
+      (mockRepository.createQueryBuilder as jest.Mock).mockReturnValue(mockQueryBuilderInstance);
 
-        expect(mockTicketORMRepo.createQueryBuilder).toHaveBeenCalledWith("ticket");
-        expect(qb.where).toHaveBeenCalledWith("ticket.id = :id", { id: 1 });
-        expect(qb.leftJoinAndSelect).toHaveBeenCalledWith("ticket.service", "service");
-        expect(qb.getOne).toHaveBeenCalled();
-        expect(result).toEqual(ticket);
+      await expect(ticketRepository.findByDeskId(999)).resolves.toEqual(emptyTickets);
+
+      expect(mockRepository.createQueryBuilder).toHaveBeenCalledWith("ticket");
+      expect(mockQueryBuilderInstance.innerJoin).toHaveBeenCalledWith(
+        "ticket.managedBy",
+        "desk",
+        "desk.id = :deskId",
+        { deskId: 999 }
+      );
+      expect(mockQueryBuilderInstance.getMany).toHaveBeenCalledTimes(1);
+      expect(mockQueryBuilderInstance.where).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("updateStatus", () => {
+    it("should update the status of a ticket and return the updated ticket", async () => {
+      const existingTicket: TicketDAO = { id: 1, status: StatusType.open, createdAt: new Date(), service: mockService, managedBy: null };
+      const updatedTicket: TicketDAO = { ...existingTicket, status: StatusType.closed };
+
+      mockRepository.findOneBy.mockResolvedValue(existingTicket);
+      mockRepository.save.mockResolvedValue(updatedTicket);
+
+      await expect(ticketRepository.updateStatus(1, StatusType.closed)).resolves.toEqual(updatedTicket);
+      expect(mockRepository.findOneBy).toHaveBeenCalledWith({ id: 1 });
+      expect(existingTicket.status).toBe(StatusType.closed); // Verifica che l'oggetto sia stato modificato
+      expect(mockRepository.save).toHaveBeenCalledWith(existingTicket);
     });
 
-    // ---------- TEST: findByServiceId ----------
-    test("findByServiceId() should call query builder with inner join on service and apply relations", async () => {
-        const tickets = [{ id: 1, status: "OPEN" as StatusType }];
-        const qb = mockQueryBuilder();
-        qb.getMany.mockResolvedValue(tickets);
-        mockTicketORMRepo.createQueryBuilder.mockReturnValue(qb);
+    it("should return null if ticket to update status not found", async () => {
+      mockRepository.findOneBy.mockResolvedValue(null);
 
-        const result = await repo.findByServiceId(10, ["managedBy"]);
+      await expect(ticketRepository.updateStatus(999, StatusType.closed)).resolves.toBeNull();
+      expect(mockRepository.findOneBy).toHaveBeenCalledWith({ id: 999 });
+      expect(mockRepository.save).not.toHaveBeenCalled();
+    });
+  });
 
-        expect(mockTicketORMRepo.createQueryBuilder).toHaveBeenCalledWith("ticket");
-        expect(qb.innerJoin).toHaveBeenCalledWith("ticket.service", "svc", "svc.id = :serviceId", { serviceId: 10 });
-        expect(qb.leftJoinAndSelect).toHaveBeenCalledWith("ticket.managedBy", "desk");
-        expect(qb.getMany).toHaveBeenCalled();
-        expect(result).toEqual(tickets);
+  describe("create", () => {
+    it("should create and return a new ticket", async () => {
+      const newTicketData: Partial<TicketDAO> = {
+        status: StatusType.open,
+        createdAt: new Date(),
+        service: mockService,
+      };
+      const createdTicket: TicketDAO = { ...newTicketData, id: 1, managedBy: null } as TicketDAO;
+
+      mockRepository.create.mockReturnValue({ ...newTicketData, managedBy: null } as TicketDAO);
+      mockRepository.save.mockResolvedValue(createdTicket);
+
+      await expect(ticketRepository.create(newTicketData)).resolves.toEqual(createdTicket);
+      expect(mockRepository.create).toHaveBeenCalledWith(newTicketData);
+      expect(mockRepository.save).toHaveBeenCalledWith(
+        { ...newTicketData, managedBy: null }
+      );
+    });
+  });
+
+  describe("update", () => {
+    it("should update and return the updated ticket", async () => {
+      const existingTicket: TicketDAO = { id: 1, status: StatusType.open, createdAt: new Date(), service: mockService, managedBy: null };
+      const updatedData: Partial<TicketDAO> = { status: StatusType.closed, endedAt: new Date() };
+      const savedTicket: TicketDAO = { ...existingTicket, ...updatedData };
+
+      mockRepository.findOneBy.mockResolvedValue(existingTicket);
+      mockRepository.save.mockResolvedValue(savedTicket);
+
+      await expect(ticketRepository.update(1, updatedData)).resolves.toEqual(savedTicket);
+      expect(mockRepository.findOneBy).toHaveBeenCalledWith({ id: 1 });
+      expect(mockRepository.save).toHaveBeenCalledWith(savedTicket);
     });
 
-    // ---------- TEST: findByDeskId ----------
-    test("findByDeskId() should call query builder with inner join on desk and apply relations", async () => {
-        const tickets = [{ id: 1, status: "OPEN" as StatusType }];
-        const qb = mockQueryBuilder();
-        qb.getMany.mockResolvedValue(tickets);
-        mockTicketORMRepo.createQueryBuilder.mockReturnValue(qb);
+    it("should return null if ticket to update not found", async () => {
+      const updatedData: Partial<TicketDAO> = { status: StatusType.closed };
+      mockRepository.findOneBy.mockResolvedValue(null);
 
-        const result = await repo.findByDeskId(20, ["service"]);
+      await expect(ticketRepository.update(999, updatedData)).resolves.toBeNull();
+      expect(mockRepository.findOneBy).toHaveBeenCalledWith({ id: 999 });
+      expect(mockRepository.save).not.toHaveBeenCalled();
+    });
+  });
 
-        expect(mockTicketORMRepo.createQueryBuilder).toHaveBeenCalledWith("ticket");
-        expect(qb.innerJoin).toHaveBeenCalledWith("ticket.managedBy", "desk", "desk.id = :deskId", { deskId: 20 });
-        expect(qb.leftJoinAndSelect).toHaveBeenCalledWith("ticket.service", "service");
-        expect(qb.getMany).toHaveBeenCalled();
-        expect(result).toEqual(tickets);
+  describe("delete", () => {
+    it("should delete a ticket and return true if successful", async () => {
+      mockRepository.delete.mockResolvedValue({ affected: 1 } as any);
+
+      await expect(ticketRepository.delete(1)).resolves.toBe(true);
+      expect(mockRepository.delete).toHaveBeenCalledWith(1);
     });
 
-    // ---------- TEST: findByServiceIdStatus ----------
-    test("findByServiceIdStatus() should call query builder with serviceId and status and apply relations", async () => {
-        const tickets = [{ id: 1, status: "IN_PROGRESS" as StatusType }];
-        const qb = mockQueryBuilder();
-        qb.getMany.mockResolvedValue(tickets);
-        mockTicketORMRepo.createQueryBuilder.mockReturnValue(qb);
+    it("should return false if ticket to delete not found", async () => {
+      mockRepository.delete.mockResolvedValue({ affected: 0 } as any);
 
-        const result = await repo.findByServiceIdStatus(10, "IN_PROGRESS" as StatusType, ["managedBy"]);
-
-        expect(mockTicketORMRepo.createQueryBuilder).toHaveBeenCalledWith("ticket");
-        expect(qb.innerJoin).toHaveBeenCalledWith("ticket.service", "svc", "svc.id = :serviceId", { serviceId: 10 });
-        expect(qb.where).toHaveBeenCalledWith("ticket.status = :status", { status: "IN_PROGRESS" as StatusType });
-        expect(qb.leftJoinAndSelect).toHaveBeenCalledWith("ticket.managedBy", "desk");
-        expect(qb.getMany).toHaveBeenCalled();
-        expect(result).toEqual(tickets);
+      await expect(ticketRepository.delete(999)).resolves.toBe(false);
+      expect(mockRepository.delete).toHaveBeenCalledWith(999);
     });
-
-    // ---------- TEST: findServicesByIds ----------
-    test("findServicesByIds() should call serviceRepo.find with ids", async () => {
-        const ids = [1, 2, 3];
-        const services = [{ id: 1, name: "Service A" }];
-        mockServiceORMRepo.find.mockResolvedValue(services);
-
-        const result = await repo.findServicesByIds(ids);
-
-        expect(mockServiceORMRepo.find).toHaveBeenCalledWith({ where: { id: In(ids) } });
-        expect(result).toEqual(services);
-    });
-
-    test("findServicesByIds() should return empty array if no ids", async () => {
-        const result = await repo.findServicesByIds([]);
-        expect(mockServiceORMRepo.find).not.toHaveBeenCalled();
-        expect(result).toEqual([]);
-    });
-
-    // ---------- TEST: findServiceById ----------
-    test("findServiceById() should call serviceRepo.findOne with id", async () => {
-        const service = { id: 1, name: "Service A" };
-        mockServiceORMRepo.findOne.mockResolvedValue(service);
-
-        const result = await repo.findServiceById(1);
-
-        expect(mockServiceORMRepo.findOne).toHaveBeenCalledWith({ where: { id: 1 } });
-        expect(result).toEqual(service);
-    });
-
-    // ---------- TEST: findDeskById ----------
-    test("findDeskById() should call deskRepo.findOne with id", async () => {
-        const desk = { id: 1, name: "Desk A" };
-        mockDeskORMRepo.findOne.mockResolvedValue(desk);
-
-        const result = await repo.findDeskById(1);
-
-        expect(mockDeskORMRepo.findOne).toHaveBeenCalledWith({ where: { id: 1 } });
-        expect(result).toEqual(desk);
-    });
-
-    // ---------- TEST: save ----------
-    test("save() should call repo.save with entity", async () => {
-        const entity = { id: 1, status: "OPEN" as StatusType };
-        mockTicketORMRepo.save.mockResolvedValue(entity);
-
-        const result = await repo.save(entity as TicketDAO);
-
-        expect(mockTicketORMRepo.save).toHaveBeenCalledWith(entity);
-        expect(result).toEqual(entity);
-    });
-
-    // ---------- TEST: updateStatus ----------
-    test("updateStatus() should find, update status, and save the ticket", async () => {
-        const ticket = { id: 1, status: "OPEN" as StatusType };
-        mockTicketORMRepo.findOne.mockResolvedValue(ticket);
-        const updatedTicket = { ...ticket, status: "CLOSED" as StatusType };
-        mockTicketORMRepo.save.mockResolvedValue(updatedTicket);
-
-        const result = await repo.updateStatus(1, "CLOSED" as StatusType);
-
-        expect(mockTicketORMRepo.findOne).toHaveBeenCalledWith({ where: { id: 1 } });
-        expect(mockTicketORMRepo.save).toHaveBeenCalledWith(updatedTicket);
-        expect(result).toEqual(updatedTicket);
-    });
-
-    test("updateStatus() should return null if ticket not found", async () => {
-        mockTicketORMRepo.findOne.mockResolvedValue(null);
-
-        const result = await repo.updateStatus(99, "CLOSED" as StatusType);
-
-        expect(mockTicketORMRepo.findOne).toHaveBeenCalledWith({ where: { id: 99 } });
-        expect(mockTicketORMRepo.save).not.toHaveBeenCalled();
-        expect(result).toBeNull();
-    });
-
-    // ---------- TEST: delete ----------
-    test("delete() should call repo.delete with id and return true if affected", async () => {
-        mockTicketORMRepo.delete.mockResolvedValue({ affected: 1 });
-
-        const result = await repo.delete(9);
-
-        expect(mockTicketORMRepo.delete).toHaveBeenCalledWith(9);
-        expect(result).toBe(true);
-    });
-
-    test("delete() should return false if no rows affected", async () => {
-        mockTicketORMRepo.delete.mockResolvedValue({ affected: 0 });
-
-        const result = await repo.delete(9);
-
-        expect(mockTicketORMRepo.delete).toHaveBeenCalledWith(9);
-        expect(result).toBe(false);
-    });
+  });
 });

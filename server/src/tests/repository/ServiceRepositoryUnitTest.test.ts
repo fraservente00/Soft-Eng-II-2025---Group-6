@@ -1,225 +1,186 @@
-import { In } from "typeorm";
-import { AppDataSource } from "../../data-source";
-import { ServiceDAO } from "../../models/DAO/ServiceDAO";
-import { ServiceRepository } from "../../repositories/ServiceRepository";
-import { DeskDAO } from "../../models/DAO/DeskDAO"; // Importa DeskDAO per i tipi nei mock
+import "reflect-metadata"; // Importante per TypeORM
+import { Repository, SelectQueryBuilder } from "typeorm";
+import { AppDataSource } from "../../data-source"; // Percorso aggiornato
+import { ServiceDAO } from "../../models/DAO/ServiceDAO"; // Percorso aggiornato
+import { DeskDAO } from "../../models/DAO/DeskDAO"; // Potrebbe essere necessario per i mock delle relazioni
+import { TicketDAO } from "../../models/DAO/TicketDAO"; // Potrebbe essere necessario per i mock delle relazioni
+import { ServiceRepository } from "../../repositories/ServiceRepository"; // Percorso aggiornato
 
-// Mock di tutto ciò che proviene da TypeORM e dal datasource
-// Assicurati che questi mock siano coerenti con quelli globali o definiti nel setupFilesAfterEnv
-jest.mock("typeorm", () => {
-    const original = jest.requireActual("typeorm");
-    return {
-        ...original,
-        In: jest.fn((x) => x), // Mantieni questo se lo usi nei repository
-        Repository: jest.fn().mockImplementation(() => ({
-            find: jest.fn(),
-            findOne: jest.fn(),
-            save: jest.fn(),
-            delete: jest.fn(),
-            createQueryBuilder: jest.fn(),
-        })),
-    };
-});
+// --- Inizio configurazione Mock ---
 
-jest.mock("../../data-source", () => {
-    const mockGetRepository = jest.fn();
-    return {
-        AppDataSource: {
-            getRepository: mockGetRepository,
-        },
-    };
-});
+// Oggetto mock per il ServiceRepository, con tutti i metodi che verranno usati.
+// `createQueryBuilder` viene inizialmente mockato come jest.fn() semplice.
+const mockServiceRepository = {
+  find: jest.fn(),
+  findOneBy: jest.fn(),
+  create: jest.fn(),
+  save: jest.fn(),
+  delete: jest.fn(),
+  createQueryBuilder: jest.fn(),
+} as unknown as jest.Mocked<Repository<ServiceDAO>>;
+
+// Mock di AppDataSource per restituire sempre la stessa istanza del mock del ServiceRepository.
+jest.mock("../../data-source", () => ({ // Percorso aggiornato
+  AppDataSource: {
+    getRepository: jest.fn(() => mockServiceRepository),
+  },
+}));
+
+// --- Fine configurazione Mock ---
 
 describe("ServiceRepository", () => {
-    let repo: ServiceRepository;
-    let mockServiceORMRepo: any; // Il repository effettivo per ServiceDAO
-    let mockDeskORMRepo: any; // Il repository effettivo per DeskDAO
+  let serviceRepository: ServiceRepository;
+  let mockRepository: jest.Mocked<Repository<ServiceDAO>>;
 
-    beforeEach(() => {
-        mockServiceORMRepo = {
-            find: jest.fn(),
-            findOne: jest.fn(),
-            save: jest.fn(),
-            delete: jest.fn(),
-            createQueryBuilder: jest.fn(),
-        };
+  // Tipo per il mock del QueryBuilder per una migliore tipizzazione
+  type MockQueryBuilder = jest.Mocked<
+    Pick<
+      SelectQueryBuilder<ServiceDAO>,
+      "innerJoin" | "where" | "getMany"
+    >
+  >;
 
-        mockDeskORMRepo = {
-            find: jest.fn(),
-        };
+  beforeEach(() => {
+    // Resetta tutti i mock PRIMA di ogni test per garantire l'isolamento.
+    jest.clearAllMocks();
+    serviceRepository = new ServiceRepository();
+    // mockRepository ora punta all'istanza globale mockServiceRepository.
+    mockRepository = mockServiceRepository;
+  });
 
-        // Assicurati che AppDataSource.getRepository restituisca i mock nell'ordine corretto
-        // Il primo .getRepository(ServiceDAO) restituirà mockServiceORMRepo
-        // Il secondo .getRepository(DeskDAO) restituirà mockDeskORMRepo
-        (AppDataSource.getRepository as jest.Mock)
-            .mockImplementation((entity) => {
-                if (entity === ServiceDAO) {
-                    return mockServiceORMRepo;
-                }
-                if (entity === DeskDAO) {
-                    return mockDeskORMRepo;
-                }
-                return new Error("Unexpected DAO entity");
-            });
+  describe("findAll", () => {
+    it("should return all services", async () => {
+      // Un mock completo di ServiceDAO
+      const services: ServiceDAO[] = [{ id: 1, name: "Service A", estimatedTime: 10, desks: [], tickets: [] }];
+      mockRepository.find.mockResolvedValue(services);
 
-        repo = new ServiceRepository();
+      await expect(serviceRepository.findAll()).resolves.toEqual(services);
+      expect(mockRepository.find).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("findById", () => {
+    it("should return a service by id", async () => {
+      const service: ServiceDAO = { id: 1, name: "Service A", estimatedTime: 10, desks: [], tickets: [] };
+      mockRepository.findOneBy.mockResolvedValue(service);
+
+      await expect(serviceRepository.findById(1)).resolves.toEqual(service);
+      expect(mockRepository.findOneBy).toHaveBeenCalledWith({ id: 1 });
     });
 
-    afterEach(() => {
-        jest.clearAllMocks();
+    it("should return null if service not found", async () => {
+      mockRepository.findOneBy.mockResolvedValue(null);
+
+      await expect(serviceRepository.findById(999)).resolves.toBeNull();
+      expect(mockRepository.findOneBy).toHaveBeenCalledWith({ id: 999 });
+    });
+  });
+
+  describe("findByDeskId", () => {
+    it("should return services associated with a desk ID", async () => {
+      const services: ServiceDAO[] = [{ id: 1, name: "Service A", estimatedTime: 10, desks: [], tickets: [] }];
+
+      // Mockiamo l'oggetto QueryBuilder che createQueryBuilder dovrebbe restituire
+      const mockQueryBuilderInstance = {
+        innerJoin: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue(services),
+      };
+
+      // Facciamo in modo che mockRepository.createQueryBuilder restituisca questa istanza mockata
+      (mockRepository.createQueryBuilder as jest.Mock).mockReturnValue(mockQueryBuilderInstance);
+
+      await expect(serviceRepository.findByDeskId(1)).resolves.toEqual(services);
+
+      // Verifiche
+      expect(mockRepository.createQueryBuilder).toHaveBeenCalledWith("service");
+      expect(mockQueryBuilderInstance.innerJoin).toHaveBeenCalledWith(
+        "service.desks",
+        "desk",
+        "desk.id = :deskId",
+        { deskId: 1 }
+      );
+      expect(mockQueryBuilderInstance.getMany).toHaveBeenCalledTimes(1);
     });
 
-    // ---------- TEST: findAll ----------
-    test("findAll() should call repo.find with correct relations and order", async () => {
-        const services = [{ id: 1, name: "Service A" }];
-        mockServiceORMRepo.find.mockResolvedValue(services);
+    it("should return an empty array if no services are associated with the desk ID", async () => {
+      const emptyServices: ServiceDAO[] = [];
 
-        const result = await repo.findAll(["desks"]);
+      const mockQueryBuilderInstance = {
+        innerJoin: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue(emptyServices),
+      };
 
-        expect(mockServiceORMRepo.find).toHaveBeenCalledWith({
-            relations: {
-                desks: true,
-                tickets: false,
-            },
-            order: { id: "ASC" },
-        });
-        expect(result).toEqual(services);
+      (mockRepository.createQueryBuilder as jest.Mock).mockReturnValue(mockQueryBuilderInstance);
+
+      await expect(serviceRepository.findByDeskId(999)).resolves.toEqual(emptyServices);
+
+      expect(mockRepository.createQueryBuilder).toHaveBeenCalledWith("service");
+      expect(mockQueryBuilderInstance.innerJoin).toHaveBeenCalledWith(
+        "service.desks",
+        "desk",
+        "desk.id = :deskId",
+        { deskId: 999 }
+      );
+      expect(mockQueryBuilderInstance.getMany).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("create", () => {
+    it("should create and return a new service", async () => {
+      const newServiceData: Partial<ServiceDAO> = { name: "New Service", estimatedTime: 15 };
+      const createdService: ServiceDAO = { id: 1, name: "New Service", estimatedTime: 15, desks: [], tickets: [] };
+
+      // Simulate TypeORM's create: take partial data, return an entity instance (might have default relations)
+      mockRepository.create.mockReturnValue({ ...newServiceData, desks: [], tickets: [] } as ServiceDAO);
+      mockRepository.save.mockResolvedValue(createdService);
+
+      await expect(serviceRepository.create(newServiceData as ServiceDAO)).resolves.toEqual(createdService);
+      expect(mockRepository.create).toHaveBeenCalledWith(newServiceData);
+      expect(mockRepository.save).toHaveBeenCalledWith(
+        { ...newServiceData, desks: [], tickets: [] } // What was returned by .create()
+      );
+    });
+  });
+
+  describe("update", () => {
+    it("should update and return the updated service", async () => {
+      const existingService: ServiceDAO = { id: 1, name: "Service A", estimatedTime: 10, desks: [], tickets: [] };
+      const updatedData: Partial<ServiceDAO> = { name: "Updated Service A", estimatedTime: 20 };
+      const savedService: ServiceDAO = { ...existingService, ...updatedData };
+
+      mockRepository.findOneBy.mockResolvedValue(existingService);
+      mockRepository.save.mockResolvedValue(savedService);
+
+      await expect(serviceRepository.update(1, updatedData as ServiceDAO)).resolves.toEqual(savedService);
+      expect(mockRepository.findOneBy).toHaveBeenCalledWith({ id: 1 });
+      expect(mockRepository.save).toHaveBeenCalledWith(savedService);
     });
 
-    test("findAll() should handle no relations", async () => {
-        const services = [{ id: 1, name: "Service A" }];
-        mockServiceORMRepo.find.mockResolvedValue(services);
+    it("should return null if service to update is not found", async () => {
+      const updatedData: Partial<ServiceDAO> = { name: "Updated Service 999", estimatedTime: 30 };
+      mockRepository.findOneBy.mockResolvedValue(null);
 
-        const result = await repo.findAll(); // Senza relazioni
+      await expect(serviceRepository.update(999, updatedData as ServiceDAO)).resolves.toBeNull();
+      expect(mockRepository.findOneBy).toHaveBeenCalledWith({ id: 999 });
+      expect(mockRepository.save).not.toHaveBeenCalled();
+    });
+  });
 
-        expect(mockServiceORMRepo.find).toHaveBeenCalledWith({
-            relations: {
-                desks: false,
-                tickets: false,
-            },
-            order: { id: "ASC" },
-        });
-        expect(result).toEqual(services);
+  describe("delete", () => {
+    it("should delete a service and return true if successful", async () => {
+      mockRepository.delete.mockResolvedValue({ affected: 1 } as any);
+
+      await expect(serviceRepository.delete(1)).resolves.toBe(true);
+      expect(mockRepository.delete).toHaveBeenCalledWith(1);
     });
 
-    // ---------- TEST: findById ----------
-    test("findById() should call repo.findOne with id and relations", async () => {
-        const service = { id: 5, name: "Service B" };
-        mockServiceORMRepo.findOne.mockResolvedValue(service);
+    it("should return false if service to delete is not found", async () => {
+      mockRepository.delete.mockResolvedValue({ affected: 0 } as any);
 
-        const result = await repo.findById(5, ["tickets"]);
-
-        expect(mockServiceORMRepo.findOne).toHaveBeenCalledWith({
-            where: { id: 5 },
-            relations: {
-                desks: false,
-                tickets: true,
-            },
-        });
-        expect(result).toEqual(service);
+      await expect(serviceRepository.delete(999)).resolves.toBe(false);
+      expect(mockRepository.delete).toHaveBeenCalledWith(999);
     });
-
-    // ---------- TEST: findByName ----------
-    test("findByName() should call repo.findOne with name", async () => {
-        const service = { id: 3, name: "Service C" };
-        mockServiceORMRepo.findOne.mockResolvedValue(service);
-
-        const result = await repo.findByName("Service C");
-
-        expect(mockServiceORMRepo.findOne).toHaveBeenCalledWith({
-            where: { name: "Service C" },
-        });
-        expect(result).toEqual(service);
-    });
-
-    // ---------- TEST: findByDeskId ----------
-    test("findByDeskId() should build query with joins and return result", async () => {
-        const fakeQueryBuilder = {
-            innerJoin: jest.fn().mockReturnThis(),
-            leftJoinAndSelect: jest.fn().mockReturnThis(),
-            getMany: jest.fn().mockResolvedValue([{ id: 1, name: "Service D" }]),
-        };
-        mockServiceORMRepo.createQueryBuilder.mockReturnValue(fakeQueryBuilder);
-
-        const result = await repo.findByDeskId(10, ["desks", "tickets"]);
-
-        expect(mockServiceORMRepo.createQueryBuilder).toHaveBeenCalledWith("service");
-        expect(fakeQueryBuilder.innerJoin).toHaveBeenCalledWith(
-            "service.desks",
-            "desk",
-            "desk.id = :deskId",
-            { deskId: 10 }
-        );
-        expect(fakeQueryBuilder.leftJoinAndSelect).toHaveBeenCalledWith("service.desks", "d");
-        expect(fakeQueryBuilder.leftJoinAndSelect).toHaveBeenCalledWith("service.tickets", "t");
-        expect(fakeQueryBuilder.leftJoinAndSelect).toHaveBeenCalledTimes(2);
-        expect(fakeQueryBuilder.getMany).toHaveBeenCalled();
-        expect(result).toEqual([{ id: 1, name: "Service D" }]);
-    });
-
-    test("findByDeskId() should build query without optional joins if relations not specified", async () => {
-        const fakeQueryBuilder = {
-            innerJoin: jest.fn().mockReturnThis(),
-            leftJoinAndSelect: jest.fn().mockReturnThis(),
-            getMany: jest.fn().mockResolvedValue([{ id: 1, name: "Service D" }]),
-        };
-        mockServiceORMRepo.createQueryBuilder.mockReturnValue(fakeQueryBuilder);
-
-        const result = await repo.findByDeskId(10); // Senza relazioni
-
-        expect(mockServiceORMRepo.createQueryBuilder).toHaveBeenCalledWith("service");
-        expect(fakeQueryBuilder.innerJoin).toHaveBeenCalledWith(
-            "service.desks",
-            "desk",
-            "desk.id = :deskId",
-            { deskId: 10 }
-        );
-        expect(fakeQueryBuilder.leftJoinAndSelect).not.toHaveBeenCalled(); // Nessuna join opzionale
-        expect(fakeQueryBuilder.getMany).toHaveBeenCalled();
-        expect(result).toEqual([{ id: 1, name: "Service D" }]);
-    });
-
-
-    // ---------- TEST: findDesksByIds ----------
-    test("findDesksByIds() should call deskRepo.find with ids", async () => {
-        const ids = [1, 2, 3];
-        const desks = [{ id: 1, name: "Desk X" }];
-        mockDeskORMRepo.find.mockResolvedValue(desks);
-
-        const result = await repo.findDesksByIds(ids);
-
-        expect(mockDeskORMRepo.find).toHaveBeenCalledWith({
-            where: { id: In(ids) },
-        });
-        expect(result).toEqual(desks);
-    });
-
-    test("findDesksByIds() should return empty array if no ids are provided", async () => {
-        const ids: number[] = [];
-        const result = await repo.findDesksByIds(ids);
-
-        expect(mockDeskORMRepo.find).not.toHaveBeenCalled();
-        expect(result).toEqual([]);
-    });
-
-    // ---------- TEST: save ----------
-    test("save() should call repo.save with entity", async () => {
-        const entity = { id: 7, name: "New Service" };
-        mockServiceORMRepo.save.mockResolvedValue(entity);
-
-        const result = await repo.save(entity as ServiceDAO);
-
-        expect(mockServiceORMRepo.save).toHaveBeenCalledWith(entity);
-        expect(result).toEqual(entity);
-    });
-
-    // ---------- TEST: delete ----------
-    test("delete() should call repo.delete with id", async () => {
-        mockServiceORMRepo.delete.mockResolvedValue({ affected: 1 });
-
-        const result = await repo.delete(9);
-
-        expect(mockServiceORMRepo.delete).toHaveBeenCalledWith(9);
-        expect(result).toEqual({ affected: 1 });
-    });
+  });
 });
