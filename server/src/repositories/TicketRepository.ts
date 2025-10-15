@@ -11,11 +11,11 @@ export class TicketRepository {
   }
 
   async findAll(): Promise<TicketDAO[]> {
-    return this.repository.find();
+  return this.repository.find({ relations: ["service", "managedBy"] });
   }
 
   async findById(id: number): Promise<TicketDAO | null> {
-    return this.repository.findOneBy({ id } as any);
+    return this.repository.findOne({ where: { id } as any, relations: ["service", "managedBy"] });
   }
 
   // this is for managing queues when there is a crash
@@ -32,7 +32,7 @@ export class TicketRepository {
   async findByServiceId(serviceId: number): Promise<TicketDAO[]> {
     return this.repository
       .createQueryBuilder("ticket")
-      .innerJoin("ticket.services", "service", "service.id = :serviceId", { serviceId })
+      .innerJoin("ticket.service", "service", "service.id = :serviceId", { serviceId })
       .getMany();
   }
 
