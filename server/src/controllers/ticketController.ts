@@ -4,7 +4,7 @@ import { mapTicketDAOToDTO, mapTicketDTOToDAO } from "../services/mapperService"
 import { NotFoundError } from "../models/errors/NotFoundError";
 import { StatusType } from "../models/StatusType";
 import { Request, Response } from "express";
-import { addClient } from "../services/callService";
+import { addClient, removeClient } from "../services/callService";
 import queueService from "../services/queueService";
 
 /**
@@ -120,9 +120,12 @@ export async function deleteTicket(id: number): Promise<void> {
 /** Subscribe to ticket events (SSE) */
 
 export function subscribeToTickets(req: Request, res: Response) {
-  res.setHeader("Content-Type", "text/event-stream");
-  res.setHeader("Cache-Control", "no-cache");
-  res.setHeader("Connection", "keep-alive");
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Expose-Headers', 'Content-Type');
   res.flushHeaders();
 
   addClient(req, res);

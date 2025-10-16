@@ -127,7 +127,8 @@ export async function updateTicketStatus(id, status) {
 
 //here you pass the callback function that will handle incoming messages
 export function subscribeToTickets(onMessage) {
-  const eventSource = new EventSource(`${API_BASE}/subscribe`);
+
+  const eventSource = new EventSource(`${API_BASE}/tickets/subscribe`);
 
  // When the server sends a "ticketCalled" event
   eventSource.addEventListener("ticketCalled", (event) => {
@@ -135,15 +136,15 @@ export function subscribeToTickets(onMessage) {
     onMessage(data); // Call the provided callback with the data
   });
 
+  // report errors but keep the connection open so we can observe server logs
   eventSource.onerror = (err) => {
     console.error("SSE error:", err);
-    eventSource.close();
+    // don't immediately close; let the browser attempt reconnects (EventSource auto-reconnects)
   };
 
   // Return a cleanup function to stop listening
   return () => {
     eventSource.close();
-    console.log("SSE connection closed");
   };
 }
 
