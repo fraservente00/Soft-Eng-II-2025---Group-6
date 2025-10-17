@@ -64,7 +64,7 @@ export default function DeskSelectPage() {
     const handleConfirm = () => {
         if (!selected || selected.id == null) return;
         localStorage.setItem('selectedDesk', JSON.stringify({ id: selected.id, name: selected.name }));
-        navigate('/dashboard', { replace: true });
+        navigate(`/desk/${selected.id}`, { replace: true });
     };
 
     return (

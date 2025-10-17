@@ -26,9 +26,20 @@ export async function getDesk(id) {
 
 export async function callNext(deskId) {
   try {
-    const res = await fetch(`${API_BASE}/desks/${deskId}/next`, { method: "POST" });
+    const res = await fetch(`${API_BASE}/desks/${deskId}/next`, { method: "GET" });
     if (res.status === 204) return null; // nessun cliente in coda
-    if (!res.ok) throw new Error(`Errore POST /desks/${deskId}/next: ${res.status} ${res.statusText}`);
+    if (!res.ok) throw new Error(`Errore GET /desks/${deskId}/next: ${res.status} ${res.statusText}`);
+    return res.json();
+  } catch (err) {
+    console.error(err);
+    throw err;
+  }
+}
+
+export async function getServiceByDeskId(deskId){
+  try {
+    const res = await fetch(`${API_BASE}/desks/${deskId}/services`, { method: "GET" });
+    if (!res.ok) throw new Error(`Errore GET /desks/${deskId}/next: ${res.status} ${res.statusText}`);
     return res.json();
   } catch (err) {
     console.error(err);
@@ -47,6 +58,7 @@ export async function getServices() {
     throw err;
   }
 }
+
 
 /* ------------------ TICKETS ------------------ */
 export async function createTicket(payload) {
@@ -67,6 +79,17 @@ export async function createTicket(payload) {
 export async function getTickets() {
   try {
     const res = await fetch(`${API_BASE}/tickets`);
+    if (!res.ok) throw new Error(`Errore GET /tickets: ${res.status} ${res.statusText}`);
+    return res.json();
+  } catch (err) {
+    console.error(err);
+    throw err;
+  }
+}
+
+export async function getTicketById(ticketId){
+  try {
+    const res = await fetch(`${API_BASE}/tickets/${ticketId}`);
     if (!res.ok) throw new Error(`Errore GET /tickets: ${res.status} ${res.statusText}`);
     return res.json();
   } catch (err) {
@@ -104,7 +127,8 @@ export async function updateTicketStatus(id, status) {
 
 //here you pass the callback function that will handle incoming messages
 export function subscribeToTickets(onMessage) {
-  const eventSource = new EventSource(`${API_BASE}/subscribe`);
+
+  const eventSource = new EventSource(`${API_BASE}/tickets/subscribe`);
 
  // When the server sends a "ticketCalled" event
   eventSource.addEventListener("ticketCalled", (event) => {
@@ -112,15 +136,15 @@ export function subscribeToTickets(onMessage) {
     onMessage(data); // Call the provided callback with the data
   });
 
+  // report errors but keep the connection open so we can observe server logs
   eventSource.onerror = (err) => {
     console.error("SSE error:", err);
-    eventSource.close();
+    // don't immediately close; let the browser attempt reconnects (EventSource auto-reconnects)
   };
 
   // Return a cleanup function to stop listening
   return () => {
     eventSource.close();
-    console.log("SSE connection closed");
   };
 }
 

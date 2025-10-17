@@ -1,7 +1,14 @@
 import "reflect-metadata";
 import express, { Request, Response, NextFunction } from "express";
 import { AppDataSource } from "./data-source";
-import routes from "./routes"; // <-- usa SOLO questo
+//import routes from "./routes"; // <-- usa SOLO questo
+import deskRoutes from "./routes/deskRoutes";
+import ticketRoutes from "./routes/ticketRoutes";
+import serviceRoutes from "./routes/serviceRoutes";
+import routes from "./routes";
+import cors from "cors";
+import morgan from "morgan";
+
 
 const PORT = Number(process.env.PORT ?? 3000);
 export const app = express();
@@ -10,8 +17,11 @@ async function main() {
   console.log("[DB] DataSource initialized");
 
 
+
   // Middlewares
   app.use(express.json());
+  app.use(cors({origin: "http://localhost:5173", credentials: true}));
+  app.use(morgan("dev"));
 
   // Health & root
   app.get("/healthz", (_req: Request, res: Response) => res.json({ ok: true }));
@@ -19,9 +29,12 @@ async function main() {
 
   // API (usa il router aggregato: /desks, /services, /tickets)
   app.use("/api", routes);
+  //app.use("/api/desks", deskRoutes);
+  //app.use("/api/services", serviceRoutes);
+  //app.use("/api/tickets", ticketRoutes);
 
   // 404 per API non trovate
-  app.use("/api", (_req, res) => res.status(404).json({ error: "Not Found" }));
+  //app.use("/api", (_req, res) => res.status(404).json({ error: "Not Found" }));
 
   // Error handler
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {

@@ -73,7 +73,6 @@ export async function deleteDesk(id: number): Promise<void> {
 }
 
 export async function callNext(deskId: number) {
-  // assicurati che le queue siano inizializzate (ricostruite dal DB)
   await queueService.init();
 
   const deskRepo = new DeskRepository();
@@ -82,37 +81,40 @@ export async function callNext(deskId: number) {
 
   const ticketRepo = new TicketRepository();
 
-  // scorri i servizi gestiti dal desk e prova a prelevare il primo ticket
   for (const svc of deskDAO.services || []) {
     const svcId = (svc as any).id;
-    const ticketDAO = await queueService.dequeue(svcId);
+
+    // PRENDI il prossimo dalla coda (NON peek)
+    const ticketDAO = await queueService.dequeue(svcId); // <-- cambia qui
     if (!ticketDAO) continue;
-    const ticket = mapTicketDAOToDTO(ticketDAO);
-    callTicket(ticket); // dovrebbe mandare l'evento SSE
-    // assegna il ticket al desk e setta TimeStarted / status
+
     ticketDAO.managedBy = deskDAO;
+
+    const ticket = mapTicketDAOToDTO(ticketDAO);
+
+    await callTicket(ticket); // dovrebbe mandare l'evento SSE
+    // assegna il ticket al desk e setta TimeStarted / status
     ticketDAO.status = StatusType.open as any;
-    ticketDAO.TimeStarted = new Date();
+    //ticketDAO.TimeStarted = new Date();
+
+    // opzionale: se vuoi registrare chi lo sta gestendo
+    ticketDAO.managedBy = deskDAO;
+
+    // NON cambiare lo status qui (rimane 'open')
+    // ticketDAO.status = StatusType.open as any;
 
     const updated = await ticketRepo.update(ticketDAO.id, ticketDAO);
     if (!updated) continue;
 
-    // ritorna DTO
-    return mapTicketDAOToDTO(updated);
+    const dto = mapTicketDAOToDTO(updated);
+    await callTicket(dto); // solo SSE, niente chiusura
+    return dto;
   }
 
   return null;
 }
 
 export async function callTicket(ticketCalled: Ticket) {
-  const repo = new TicketRepository();
-
-  if (typeof ticketCalled.id !== "number") {
-    throw new Error("Ticket id is required to update status.");
-  }
-
-  const ticket = await repo.updateStatus(ticketCalled.id, StatusType.closed);
-
-  // Broadcast to all connected SSE clients
+  // NON chiudere qui.
   sendTicketCalledEvent(ticketCalled);
 }

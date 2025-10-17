@@ -1,9 +1,32 @@
 import { Router } from "express";
 import * as ticketController from "../controllers/ticketController";
-import express from "express";
-import cors from "cors";
+
+import {  Response, Request } from "express";
+
 
 const router = Router();
+
+// Lista globale dei client SSE
+const clients: Response[] = [];
+
+// SSE endpoint
+router.get("/subscribe", (req: Request, res: Response, next) => {
+  try {
+    return ticketController.subscribeToTickets(req as any, res as any);
+  } catch (e) {
+    next(e);
+  }
+});
+
+// Funzione per notificare tutti i client
+export function notifyAll(ticketData: any) {
+  const payload = JSON.stringify(ticketData);
+  clients.forEach(res => {
+    res.write(`event: ticketCalled\n`);
+    res.write(`data: ${payload}\n\n`);
+  });
+}
+
 
 // GET /api/tickets
 router.get("/", async (req, res, next) => {
@@ -49,24 +72,5 @@ router.get("/desk/:deskId", async (req, res, next) => {
 /*router.get("/code/:code/eta", async (req, res, next) => {
   try { res.json(await ticketController.getTicketETA(req.params.code)); } catch (e) { next(e); }
 });*/
-
-
-let clients: any[] = [];
-
- // SSE endpoint
- router.get("/subscribe", (req, res) => {
-   res.setHeader("Content-Type", "text/event-stream");
-   res.setHeader("Cache-Control", "no-cache");
-   res.setHeader("Connection", "keep-alive");
-
-   // Add the client to our list
-  clients.push(res);
-
-  // Remove client when disconnected
-   req.on("close", () => {
-     clients = clients.filter(c => c !== res);
-   });
- });
-
 
 export default router;

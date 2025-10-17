@@ -10,6 +10,7 @@ In order to run the project, you need to start both the backend server and the f
 For starting the backend server, follow these commands:
 
 cd server
+
 npm install
 
 npm run dev
@@ -18,6 +19,7 @@ npm run dev
 For starting the frontend application, follow these commands:
 
 cd frontend 
+
 npm install
 
 npm run dev

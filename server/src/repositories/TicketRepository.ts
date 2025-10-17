@@ -11,29 +11,31 @@ export class TicketRepository {
   }
 
   async findAll(): Promise<TicketDAO[]> {
-    return this.repository.find();
+  return this.repository.find({ relations: ["service", "managedBy"] });
   }
 
   async findById(id: number): Promise<TicketDAO | null> {
-    return this.repository.findOneBy({ id } as any);
+    return this.repository.findOne({ where: { id } as any, relations: ["service", "managedBy"] });
   }
 
   // this is for managing queues when there is a crash
   async findByServiceIdStatus(serviceId: number, status: StatusType): Promise<TicketDAO[]> {
-  return this.repository
-    .createQueryBuilder("ticket")
-    .innerJoin("ticket.service", "service", "service.id = :serviceId", { serviceId })
-    .where("ticket.status = :status", { status })
-    .getMany();
+    return this.repository
+        .createQueryBuilder("ticket")
+        .innerJoin("ticket.service", "service")
+        .where("service.id = :serviceId", { serviceId })
+        .andWhere("ticket.status = :status", { status })
+        .orderBy("ticket.id", "ASC")
+        .getMany();
   }
 
 
 
   async findByServiceId(serviceId: number): Promise<TicketDAO[]> {
-  return this.repository
-    .createQueryBuilder("ticket")
-    .innerJoin("ticket.service", "service", "service.id = :serviceId", { serviceId }) // singular
-    .getMany();
+    return this.repository
+      .createQueryBuilder("ticket")
+      .innerJoin("ticket.service", "service", "service.id = :serviceId", { serviceId })
+      .getMany();
   }
 
 
@@ -45,9 +47,18 @@ export class TicketRepository {
   }
 
   async updateStatus(id: number, status: StatusType): Promise<TicketDAO | null> {
-    const entity = await this.repository.findOneBy({ id } as any);
+    const entity = await this.repository.findOne({ where: { id } as any });
     if (!entity) return null;
-    entity.status = status;
+
+    entity.status = status as any;
+
+    if (status === StatusType.closed) {
+      entity.endedAt = new Date();       // timbro di chiusura
+    } else if (status === StatusType.open) {
+      // opzionale: se riapri un ticket, resetta l’endedAt
+      entity.endedAt = null;
+    }
+
     return this.repository.save(entity);
   }
 
