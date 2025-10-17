@@ -29,12 +29,15 @@ export class TicketRepository {
         .getMany();
   }
 
+
+
   async findByServiceId(serviceId: number): Promise<TicketDAO[]> {
     return this.repository
       .createQueryBuilder("ticket")
       .innerJoin("ticket.service", "service", "service.id = :serviceId", { serviceId })
       .getMany();
   }
+
 
   async findByDeskId(deskId: number): Promise<TicketDAO[]> {
     return this.repository

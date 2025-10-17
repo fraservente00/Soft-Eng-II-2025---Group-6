@@ -11,12 +11,11 @@ import morgan from "morgan";
 
 
 const PORT = Number(process.env.PORT ?? 3000);
-
+export const app = express();
 async function main() {
   await AppDataSource.initialize();
   console.log("[DB] DataSource initialized");
 
-  const app = express();
 
 
   // Middlewares
