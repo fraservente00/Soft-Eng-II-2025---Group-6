@@ -1,11 +1,12 @@
 import { Desk } from "../models/DTO/Desk";
 import { DeskRepository } from "../repositories/DeskRepository";
-import { mapDeskDAOToDTO, mapDeskDTOToDAO } from "../services/mapperService";
+import { mapDeskDAOToDTO, mapDeskDTOToDAO, mapTicketDAOToDTO } from "../services/mapperService";
 import { NotFoundError } from "../models/errors/NotFoundError";
-import queueService  from "../services/queueService";
-import { StatusType } from "../models/StatusType";
+import queueService from "../services/queueService";
 import { TicketRepository } from "../repositories/TicketRepository";
-import { mapTicketDAOToDTO } from "../services/mapperService";
+import { StatusType } from "../models/StatusType";
+import { sendTicketCalledEvent } from "../services/callService";
+import { Ticket } from "../models/DTO/Ticket";
 
 /**
  * Get all desks
@@ -71,11 +72,7 @@ export async function deleteDesk(id: number): Promise<void> {
   }
 }
 
-/** Call the next ticket for a desk
- * Returns the ticket details or null if no ticket is waiting
- */
 export async function callNext(deskId: number) {
-  // assicurati che le queue siano inizializzate (ricostruite dal DB)
   await queueService.init();
 
   const deskRepo = new DeskRepository();
@@ -84,23 +81,40 @@ export async function callNext(deskId: number) {
 
   const ticketRepo = new TicketRepository();
 
-  // scorri i servizi gestiti dal desk e prova a prelevare il primo ticket
   for (const svc of deskDAO.services || []) {
     const svcId = (svc as any).id;
-    const ticketDAO = await queueService.dequeue(svcId);
+
+    // PRENDI il prossimo dalla coda (NON peek)
+    const ticketDAO = await queueService.dequeue(svcId); // <-- cambia qui
     if (!ticketDAO) continue;
 
-    // assegna il ticket al desk e setta TimeStarted / status
     ticketDAO.managedBy = deskDAO;
-    ticketDAO.status = StatusType.Open as any;
-    ticketDAO.TimeStarted = new Date();
+
+    const ticket = mapTicketDAOToDTO(ticketDAO);
+
+    await callTicket(ticket); // dovrebbe mandare l'evento SSE
+    // assegna il ticket al desk e setta TimeStarted / status
+    ticketDAO.status = StatusType.open as any;
+    //ticketDAO.TimeStarted = new Date();
+
+    // opzionale: se vuoi registrare chi lo sta gestendo
+    ticketDAO.managedBy = deskDAO;
+
+    // NON cambiare lo status qui (rimane 'open')
+    // ticketDAO.status = StatusType.open as any;
 
     const updated = await ticketRepo.update(ticketDAO.id, ticketDAO);
     if (!updated) continue;
 
-    // ritorna DTO
-    return mapTicketDAOToDTO(updated);
+    const dto = mapTicketDAOToDTO(updated);
+    await callTicket(dto); // solo SSE, niente chiusura
+    return dto;
   }
 
   return null;
+}
+
+export async function callTicket(ticketCalled: Ticket) {
+  // NON chiudere qui.
+  sendTicketCalledEvent(ticketCalled);
 }

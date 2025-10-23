@@ -1,34 +1,89 @@
-import './App.css'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import Home from './pages/Home';
-import useRole from './hooks/useRole';
+//import "./App.css";
+import {ThemeProvider} from "@mui/material";
+import theme from "./theme";
+import {BrowserRouter, Routes, Route, Navigate} from "react-router-dom";
+import Home from "./pages/Home";
+import useRole from "./hooks/useRole";
+import OfficerDashboard from "./pages/OfficerDashboard";
 
-const RoleGuard = ({ children, required }) => {
-    const { role } = useRole();
-    if (!role) return <Navigate to="/" replace />;
-    if (role !== required) return "Access denied";
+// Pages (implemented below)
+import RoleSelectPage from './pages/RoleSelectPage';
+import DeskSelectPage from './pages/DeskSelectPage';
+import TicketSelectPage from "./pages/TicketSelectPage";
+import CustomerHomePage from "./pages/CustomerHomePage";
+
+
+// Guard that requires a role (and optionally a specific one)
+const RoleGuard = ({children, required}) => {
+    const {role} = useRole();
+
+    // If no role at all, force the role selection step
+    if (!role) return <Navigate to="/role" replace/>;
+
+    // If a specific role is required, enforce it
+    if (required && role !== required) return <Navigate to="/role" replace/>;
+
+    return <>{children}</>;
+};
+
+// Guard that requires "officier" role AND a selected desk in localStorage
+const OfficierDeskGuard = ({children}) => {
+    const {role} = useRole();
+    const selectedDesk = (() => {
+        try {
+            return JSON.parse(localStorage.getItem('selectedDesk') || 'null');
+        } catch {
+            return null;
+        }
+    })();
+
+    if (role !== 'officier') return <Navigate to="/role" replace/>;
+    if (!selectedDesk) return <Navigate to="/desk" replace/>;
+
     return <>{children}</>;
 };
 
 function App() {
+    return (
+        <ThemeProvider theme={theme}>
+            <BrowserRouter>
+                <Routes>
+                    {/* Always start from the role selection page */}
+                    <Route path="/" element={<Navigate to="/role" replace/>}/>
 
-  return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Home />} />
-        {/* <Route path="/customer" element={
-            <RoleGuard required="customer">
-                <CustomerDashboard />
-            </RoleGuard>
-        } />
-        <Route path="/officer" element={
-            <RoleGuard required="officer">
-                <OfficerDashboard />
-            </RoleGuard>
-        } /> */}
-      </Routes>
-    </BrowserRouter>
-  )
+                    {/* 1) Role selection */}
+                    <Route path="/role" element={<RoleSelectPage/>}/>
+
+                    {/* 2) Desk selection — only allowed for officier */}
+                    <Route
+                        path="/desk"
+                        element={
+                            <RoleGuard required="officier">
+                                <DeskSelectPage/>
+                            </RoleGuard>
+                        }
+                    />
+
+                    {/* 3) Dashboard— requires officier + selected desk */}
+                    <Route
+                        path="/desk/:deskId"
+                        element={
+                            <OfficierDeskGuard>
+                                {/*<OfficierDashboardPlaceholder />*/}
+                                {/* Replace with the real dashboard when available */}
+                                <OfficerDashboard/>
+                            </OfficierDeskGuard>
+                        }
+                    />
+                    <Route path="/customer" element={<Navigate to="/customer/tickets" replace/>} />
+                    <Route path="/customer/tickets" element={<TicketSelectPage/>} />
+                    <Route path="/customer/tickets/:ticketId" element={<CustomerHomePage/>} />
+                    {/* Fallback */}
+                    <Route path="*" element={<Navigate to="/role" replace/>}/>
+                </Routes>
+            </BrowserRouter>
+        </ThemeProvider>
+    );
 }
 
 export default App

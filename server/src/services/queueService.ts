@@ -2,6 +2,7 @@ import { ServiceRepository } from "../repositories/ServiceRepository";
 import { TicketRepository } from "../repositories/TicketRepository";
 import { StatusType } from "../models/StatusType";
 import { mapTicketDAOToDTO } from "./mapperService";
+import {TicketDAO} from "../models/DAO/TicketDAO";
 
 /**
  * QueueService
@@ -23,7 +24,7 @@ class QueueService {
     for (const s of services) {
       const serviceId = (s as any).id;
       // leggi ticket aperti dal DB come fallback (ordine by id asc)
-      const tickets = await ticketRepo.findByServiceIdStatus(serviceId, StatusType.Open as any).catch(() => []);
+      const tickets = await ticketRepo.findByServiceIdStatus(serviceId, StatusType.open as any).catch(() => []);
       const sortedIds = (tickets || []).map((t: any) => t.id).sort((a: number, b: number) => a - b);
       this.queues.set(serviceId, sortedIds);
     }
@@ -49,7 +50,29 @@ class QueueService {
     const ticketId = arr.shift()!;
     const ticketRepo = new TicketRepository();
     const ticket = await ticketRepo.findById(ticketId);
+
     return ticket || null;
+  }
+
+  remove(ticketId: number) {
+    for (const [serviceId, queue] of this.queues.entries()) {
+      // Filtra l'array per rimuovere il ticketId
+      const updatedQueue = queue.filter((id) => id !== ticketId);
+
+      // Aggiorna la coda nella mappa
+      this.queues.set(serviceId, updatedQueue);
+    }
+  }
+
+  async peek(serviceId: number): Promise<TicketDAO | null> {
+    this.ensureQueue(serviceId);
+    const arr = this.queues.get(serviceId)!;
+    if (arr.length === 0) return null;
+    const ticketId = arr[0]!;
+    const ticketRepo = new TicketRepository();
+    const ticket = await ticketRepo.findById(ticketId);
+
+    return ticket;
   }
 
   // helper: ritorna array di serviceId per un desk (non modifica DB)
@@ -63,6 +86,11 @@ class QueueService {
     const obj: Record<string, number[]> = {};
     for (const [k, v] of this.queues.entries()) obj[String(k)] = [...v];
     return obj;
+  }
+
+  getQueuePerId(serviceId: number): number[] {
+    this.ensureQueue(serviceId);
+    return (this.queues.get(serviceId)!); // We are sure the calls to queues.get() won't return null
   }
 }
 

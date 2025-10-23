@@ -1,7 +1,32 @@
 import { Router } from "express";
 import * as ticketController from "../controllers/ticketController";
 
+import {  Response, Request } from "express";
+
+
 const router = Router();
+
+// Lista globale dei client SSE
+const clients: Response[] = [];
+
+// SSE endpoint
+router.get("/subscribe", (req: Request, res: Response, next) => {
+  try {
+    return ticketController.subscribeToTickets(req as any, res as any);
+  } catch (e) {
+    next(e);
+  }
+});
+
+// Funzione per notificare tutti i client
+export function notifyAll(ticketData: any) {
+  const payload = JSON.stringify(ticketData);
+  clients.forEach(res => {
+    res.write(`event: ticketCalled\n`);
+    res.write(`data: ${payload}\n\n`);
+  });
+}
+
 
 // GET /api/tickets
 router.get("/", async (req, res, next) => {
